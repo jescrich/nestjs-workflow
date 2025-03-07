@@ -1,6 +1,6 @@
 {
   "name": "@jescrich/nestjs-workflow",
-  "version": "0.0.5",
+  "version": "0.0.6",
   "description": "Workflow and State Machines for NestJS",
   "license": "MIT",
   "author": "José Escrich",

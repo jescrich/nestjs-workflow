@@ -28,16 +28,6 @@ export class Order {
 
 const simpleDefinition = (entity: Order) => {
   const definition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
-    Events: [
-      OrderEvent.Create,
-      OrderEvent.Submit,
-      OrderEvent.Pending,
-      OrderEvent.Complete,
-      OrderEvent.Fail,
-      OrderEvent.Update,
-      OrderEvent.Cancel,
-    ],
-    States: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
     FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
     IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
     Transitions: [

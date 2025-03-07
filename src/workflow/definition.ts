@@ -7,8 +7,8 @@ export interface TransitionEvent<T, P, Event, States> {
 }
 
 export interface WorkflowDefinition<T, P, Event, State> {
-  Events: Event[];
-  States: State[];
+//   Events: typeof Event[];
+//   States: State[];
   FinalStates: State[];
   IdleStates: State[];
   FailedState: State;

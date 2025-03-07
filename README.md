@@ -1,144 +1,200 @@
-<div style="display: flex; justify-content: space-between; align-items: flex-start;">
-  <img src="https://media.licdn.com/dms/image/v2/D4D03AQHxXbXeM_z1DA/profile-displayphoto-shrink_800_800/profile-displayphoto-shrink_800_800/0/1727299483731?e=1744848000&v=beta&t=IqXJPILyd7pGjiDnPoMXoo4CpTQ_hrVdLQLNcNyDPVI" width="100" height="100" style="border-radius: 50%;" align="right" />
-<div>
+# NestJS Workflow & State Machine
 
-# URN Utility (`@jescrich/urn`)
+A flexible workflow engine built on top of NestJS framework, enabling developers to create, manage, and execute complex workflows in their Node.js applications.
 
-[![Publish Package](https://github.com/jescrich/urn/actions/workflows/publish.yml/badge.svg)](https://github.com/jescrich/urn/actions/workflows/publish.yml) [![npm version](https://badge.fury.io/js/@jescrich%2Furn.svg)](https://badge.fury.io/js/@jescrich%2Furn)
+## Features
 
-Author: José Escrich https://joseescrich.com
-</div>
-
-</div>
-
-
-## Overview
-A powerful, extensible utility for working with **Uniform Resource Names (URNs)**.
-
-This package allows you to **compose, validate, parse, transform, and manipulate URNs** efficiently. It supports attribute management, UUID generation, normalization, and extensibility for custom namespace validation.
-
-- [Documentation](https://jescrich.github.io/libraries/docs/urn/intro)
-- [Introduction to URNs](https://jescrich.github.io/libraries/docs/urn/why)
-- [Usage on Mongo](https://jescrich.github.io/libraries/docs/urn/mongo)
+- Workflow Definitions: Define workflows using a simple, declarative syntax
+- State Management: Track and persist workflow states
+- Event-Driven Architecture: Built on NestJS's event system for flexible workflow triggers
+- Transition Rules: Configure complex transition conditions between workflow states
+- Extensible: Easily extend with custom actions, conditions, and triggers
+- TypeScript Support: Full TypeScript support with strong typing
+- Integration Friendly: Seamlessly integrates with existing NestJS applications
 
 ## Installation
 
-```sh
-npm install @jescrich/urn
+```bash
+npm install @jescrich/nestjs-workflow
 ```
 
-or using Yarn:
+Or using yarn:
 
-```sh
-yarn add @jescrich/urn
+```bash
+yarn add @jescrich/nestjs-workflow
 ```
 
-## Usage
+## Quick Start
 
-URNs follow the format:  
-```txt
-urn:<entity>:<id>[:<key>:<value>]*
+### Module Registration
+
+```typescript
+import { Module } from '@nestjs/common';
+import { WorkflowModule } from '@jescrich/nestjs-workflow';
+
+@Module({
+  imports: [
+    WorkflowModule.forRoot({
+      storage: {
+        type: 'memory'
+      }
+    }),
+  ],
+})
+export class AppModule {}
 ```
 
-### **Examples**
-```txt
-urn:customer:jescrich@sampledomain.com
-urn:customer:6e8bc430-9c3a-11d9-9669-0800200c9a66
-urn:order:12345:vendor:amazon:status:shipped
-urn:document:abc123:type:pdf:author:john_doe
-urn:isbn:0-486-27557-4
-urn:uuid:6e8bc430-9c3a-11d9-9669-0800200c9a66
-urn:nbn:de:bvb:19-146642
-```
+### Define a Workflow
 
-## API Reference
+```typescript
+import { WorkflowDefinition } from '@jescrich/nestjs-workflow';
 
-### **1. Create a URN with a UUID**
-```ts
-import { Urn } from "@jescrich/urn";
-
-const urn = Urn.createUUID("order");
-console.log(urn);
-// Output: urn:order:550e8400-e29b-41d4-a716-446655440000
-```
-
-### **2. Compose a URN**
-```ts
-const urn = Urn.compose({ entity: "order", id: "12345", attributes: { vendor: "amazon", status: "shipped" } });
-console.log(urn);
-// Output: urn:order:12345:vendor:amazon:status:shipped
-```
-
-### **3. Parse a URN**
-```ts
-const parsed = Urn.parse("urn:document:abc123:type:pdf:author:john_doe");
-console.log(parsed);
-/* Output:
-{
-  entity: "document",
-  id: "abc123",
-  attributes: { type: "pdf", author: "john_doe" }
+// Define your entity and state/event enums
+export enum OrderEvent {
+  Create = 'order.create',
+  Submit = 'order.submit',
+  Update = 'order.update',
+  Complete = 'order.complete',
+  Fail = 'order.fail',
+  Cancel = 'order.cancel',
 }
-*/
+
+export enum OrderStatus {
+  Pending = 'pending',
+  Processing = 'processing',
+  Completed = 'completed',
+  Failed = 'failed',
+}
+
+export class Order {
+  urn: string;
+  name: string;
+  price: number;
+  items: string[];
+  status: OrderStatus;
+}
+
+// Create workflow definition
+const orderWorkflowDefinition = (entity: Order): WorkflowDefinition<Order, any, OrderEvent, OrderStatus> => {
+  return {
+    FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
+    IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+    Transitions: [
+      {
+        from: OrderStatus.Pending,
+        to: OrderStatus.Processing,
+        event: OrderEvent.Submit,
+        conditions: [(entity: Order, payload: any) => entity.price > 10],
+      },
+      {
+        from: OrderStatus.Pending,
+        to: OrderStatus.Pending,
+        event: OrderEvent.Update,
+        actions: [
+          (entity: Order, payload: any) => {
+            entity.price = payload.price;
+            entity.items = payload.items;
+            return Promise.resolve(entity);
+          },
+        ],
+      },
+      {
+        from: OrderStatus.Processing,
+        to: OrderStatus.Completed,
+        event: OrderEvent.Complete,
+      },
+      {
+        from: OrderStatus.Processing,
+        to: OrderStatus.Failed,
+        event: OrderEvent.Fail,
+      },
+    ],
+    FailedState: OrderStatus.Failed,
+    Entity: {
+      new: () => new Order(),
+      update: async (entity: Order, status: OrderStatus) => {
+        entity.status = status;
+        return entity;
+      },
+      load: async (urn: string) => {
+        return entity;
+      },
+      status: (entity: Order) => entity.status,
+      urn: function (entity: Order): string {
+        return entity.urn;
+      },
+    },
+  };
+};
 ```
 
-### **4. Extract Information**
-```ts
-console.log(Urn.entity("urn:order:12345")); // Output: order
-console.log(Urn.id("urn:order:12345")); // Output: 12345
-console.log(Urn.value("urn:order:12345:vendor:amazon", "vendor")); // Output: amazon
-```
+### Use the Workflow in a Service
 
-### **5. Attribute Management**
-```ts
-// Add or update an attribute
-const updatedUrn = Urn.addAttribute("urn:order:12345", "status", "shipped");
-console.log(updatedUrn);
-// Output: urn:order:12345:status:shipped
+```typescript
+import { Injectable } from '@nestjs/common';
+import { WorkflowService } from '@jescrich/nestjs-workflow';
+import { Order, OrderEvent, OrderStatus } from './order.model';
 
-// Remove an attribute
-const removedUrn = Urn.removeAttribute("urn:order:12345:status:shipped", "status");
-console.log(removedUrn);
-// Output: urn:order:12345
-```
-
-### **6. Validation**
-```ts
-console.log(Urn.isValid("urn:order:12345")); // Output: true
-console.log(Urn.isValid("invalid-string")); // Output: false
-```
-
-### **7. Normalization**
-```ts
-console.log(Urn.normalize("URN:Order:12345:Vendor:Amazon"));
-// Output: urn:order:12345:vendor:amazon
-```
-
-## URN Specifications
-- **Globally Unique & Persistent:** URNs provide stable, location-independent identifiers.
-- **Case-Insensitive Prefix & Namespace:** The `urn:` prefix and namespace identifiers are case-insensitive.
-- **RFC Compliance:** Namespace identifiers should follow [IANA registered URNs](https://www.iana.org/assignments/urn-namespaces/urn-namespaces.xhtml).
-- **Max Length:** URNs have a maximum length of **255 characters**.
-
-## Roadmap & Extensibility Considerations
-The future development of `@jescrich/urn` aims to further enhance its capabilities, including:
-
-- **Namespace-Specific Validation:**
-  - Allow registering custom validation rules per namespace.
-  - Example: Enforce UUID format for `urn:uuid:<id>`.
-
-- **Support for Query (`?+`, `?=`) and Fragment (`#`) Components:**
-  - Extend parsing to handle optional query/fragment parts as per RFC 8141.
+@Injectable()
+export class OrderService {
+  constructor(
+    private readonly workflowService: WorkflowService<Order, any, OrderEvent, OrderStatus>,
+  ) {}
   
-- **Object-Oriented Extension:**
-  - Introduce an extensible `URN` class to support subclassing.
+  async createOrder() {
+    const order = new Order();
+    order.urn = 'urn:order:123';
+    order.name = 'Order 123';
+    order.price = 100;
+    order.items = ['Item 1', 'Item 2', 'Item 3'];
+    order.status = OrderStatus.Pending;
+    
+    // Initialize workflow with order entity
+    const workflowDefinition = orderWorkflowDefinition(order);
+    const workflow = new WorkflowService<Order, any, OrderEvent, OrderStatus>(workflowDefinition);
+    
+    return order;
+  }
   
-- **Typed Namespace Handling:**
-  - Define stricter TypeScript types for common URN formats.
+  async submitOrder(urn: string) {
+    // Emit an event to trigger workflow transition
+    const result = await this.workflowService.emit({ 
+      urn: urn, 
+      event: OrderEvent.Submit 
+    });
+    
+    return result;
+  }
   
-- **Improved Error Handling:**
-  - Implement an `InvalidUrnError` custom class to provide more descriptive error reporting.
+  async updateOrder(urn: string, price: number, items: string[]) {
+    // Emit an event with payload to update the order
+    const result = await this.workflowService.emit({
+      urn: urn,
+      event: OrderEvent.Update,
+      payload: {
+        price: price,
+        items: items,
+      },
+    });
+    
+    return result;
+  }
+}
+```
 
-## License
-This project is licensed under the **MIT License**.
+## Configuration Options
 
+The WorkflowModule.forRoot() method accepts the following configuration options:
+
+```typescript
+interface WorkflowModuleOptions {
+  storage: {
+    type: 'memory' | 'database';
+    options?: any;
+  };
+}
+```
+
+## Advanced Usage
+
+For more advanced usage, including custom actions, conditions, and event handling, please check the documentation.

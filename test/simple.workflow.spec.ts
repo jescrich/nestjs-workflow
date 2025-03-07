@@ -1,5 +1,7 @@
+import { ModuleRef } from '@nestjs/core';
 import { WorkflowDefinition } from '@this/workflow/definition'; // Adjust path if needed
 import WorkflowService from '@this/workflow/service';
+import { DeepMocked, createMock } from '@golevelup/ts-jest';
 
 export enum OrderEvent {
   Create = 'order.create',
@@ -87,8 +89,8 @@ describe('Simple Order Workflow', () => {
     order.price = 100;
     order.items = ['Item 1', 'Item 2', 'Item 3'];
     order.status = OrderStatus.Pending;
-
-    const workflow = new WorkflowService<Order, String, OrderEvent, OrderStatus>(simpleDefinition(order));
+    const moduleRef = createMock<ModuleRef>();
+    const workflow = new WorkflowService<Order, String, OrderEvent, OrderStatus>(simpleDefinition(order), moduleRef);
     const result = await workflow.emit({ urn: order.urn, event: OrderEvent.Submit });
     expect(result.status).toBe(OrderStatus.Processing);
   });
@@ -101,7 +103,8 @@ describe('Simple Order Workflow', () => {
     order.items = ['Item 1', 'Item 2', 'Item 3'];
     order.status = OrderStatus.Pending;
 
-    const workflow = new WorkflowService<Order, String, OrderEvent, OrderStatus>(simpleDefinition(order));
+    const moduleRef = createMock<ModuleRef>();
+    const workflow = new WorkflowService<Order, String, OrderEvent, OrderStatus>(simpleDefinition(order), moduleRef);
     const result = await workflow.emit({ urn: order.urn, event: OrderEvent.Submit });
     expect(result.status).toBe(OrderStatus.Pending);
   });
@@ -113,8 +116,8 @@ describe('Simple Order Workflow', () => {
     order.price = 100;
     order.items = ['Item 1', 'Item 2', 'Item 3'];
     order.status = OrderStatus.Pending;
-
-    const workflow = new WorkflowService<Order, any, OrderEvent, OrderStatus>(simpleDefinition(order));
+    const moduleRef = createMock<ModuleRef>();
+    const workflow = new WorkflowService<Order, String, OrderEvent, OrderStatus>(simpleDefinition(order), moduleRef);
     const result = await workflow.emit({
       urn: order.urn,
       event: OrderEvent.Update,

@@ -37,6 +37,7 @@
     "rxjs": "^7.8.1"
   },
   "dependencies": {
+    "@golevelup/ts-jest": "^0.6.2",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "reflect-metadata": "^0.2.2",

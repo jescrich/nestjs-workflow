@@ -18,29 +18,71 @@ export interface Workflow<T, E> {
  */
 export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit {
   private readonly logger = new Logger(WorkflowService.name);
-  private readonly actions: Map<E, (entity: T, payload?: P | T | object | string) => Promise<T>> = new Map();
+  private readonly actionsOnStatusChanged: Map<
+    S,
+    Map<S, ((params: { entity: T; payload?: P | T | object | string }) => Promise<T>)[]>
+  > = new Map();
+  private readonly actionsOnEvent: Map<
+    E,
+    ((params: { entity: T; payload?: P | T | object | string }) => Promise<T>)[]
+  > = new Map();
 
-  @Inject()
-  private readonly moduleRef: ModuleRef;
+  constructor(
+    private readonly definition: WorkflowDefinition<T, P, E, S>,
+    private readonly moduleRef: ModuleRef,
+  ) {}
 
-  constructor(private readonly definition: WorkflowDefinition<T, P, E, S>) {}
-  
   onModuleInit() {
     // Collect all actions from the definition
-    this.definition.Actions?.forEach((action) => {
-      const instance = this.moduleRef.get(action, { strict: false });
-      if (instance && Reflect.getMetadata('isWorkflowAction', action)) {
-        const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(instance));
-        for (const method of methods) {
-          const event = Reflect.getMetadata('onEvent', instance, method);
-          if (event) {
-            this.actions.set(event, instance[method].bind(instance));
+
+    if (!this.moduleRef) {
+      throw new Error('ModuleRef is not available');
+    }
+    if (this.definition.Actions) {
+      for (const action of this.definition.Actions) {
+        const instance = this.moduleRef.get(action, { strict: false });
+        if (instance && Reflect.getMetadata('isWorkflowAction', action)) {
+          const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(instance));
+          for (const method of methods) {
+            const event = Reflect.getMetadata('onEvent', instance, method);
+            const statusChanged = Reflect.getMetadata('onStatusChanged', instance, method);
+
+            if (event) {
+              const methodParams = Reflect.getMetadata('design:paramtypes', instance, method);
+              if (!methodParams || methodParams.length !== 1 || !methodParams[0].name.includes('Object')) {
+                throw new Error(
+                  `Action method ${method} must have signature (params: { entity: T, payload?: P | T | object | string })`,
+                );
+              }
+              if (!this.actionsOnEvent.has(event)) {
+                this.actionsOnEvent.set(event, []);
+              }
+              this.actionsOnEvent.get(event)?.push(instance[method].bind(instance));
+            }
+
+            if (statusChanged) {
+              const methodParams = Reflect.getMetadata('design:paramtypes', instance, method);
+              if (!methodParams || methodParams.length !== 1 || !methodParams[0].name.includes('Object')) {
+                throw new Error(
+                  `Action method ${method} must have signature (params: { entity: T, payload?: P | T | object | string })`,
+                );
+              }
+              const { from, to } = statusChanged;
+              if (!this.actionsOnStatusChanged.has(from)) {
+                this.actionsOnStatusChanged.set(from, new Map());
+              }
+              if (!this.actionsOnStatusChanged.get(from)?.has(to)) {
+                this.actionsOnStatusChanged.get(from)?.set(to, []);
+              }
+              this.actionsOnStatusChanged.get(from)?.get(to)?.push(instance[method].bind(instance));
+            }
           }
         }
       }
-    });
+    }
 
-    this.logger.log(`Initialized with ${this.actions.size} actions`);
+    this.logger.log(`Initialized with ${this.actionsOnEvent.size} actions on events`);
+    this.logger.log(`Initialized with ${this.actionsOnStatusChanged.size} actions on status changes`);
     this.logger.log(`Initialized with ${this.definition.Transitions.length} transitions`);
     this.logger.log(`Initialized with ${this.definition.Conditions?.length} conditions`);
   }
@@ -140,10 +182,21 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
 
         let failed;
 
-        if (this.actions.has(transition.event)) {
-          const action = this.actions.get(transition.event);
-          if (action) {
-            entity = await action(entity, payload);
+        if (this.actionsOnEvent.has(transition.event)) {
+          const actions = this.actionsOnEvent.get(transition.event);
+          if (actions && actions.length > 0) {
+            this.logger.log(`Executing actions for event ${transition.event}`, urn);
+
+            for (const action of actions) {
+              this.logger.log(`Executing action ${action.name}`, urn);
+              try {
+                entity = await action({ entity, payload });
+              } catch (error) {
+                this.logger.error(`Action ${action.name} failed: ${error.message}`, urn);
+                failed = true;
+                break;
+              }
+            }
           }
         }
 

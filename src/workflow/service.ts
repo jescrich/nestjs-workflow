@@ -3,6 +3,28 @@ import { WorkflowDefinition } from './definition';
 import { TransitionEvent } from './definition';
 import { ModuleRef } from '@nestjs/core';
 
+/**
+ * Defines a workflow interface that can emit events and update the state of an entity.
+ *
+ * @template T - The type of the entity being managed.
+ * @template E - The type of events that can trigger transitions.
+ */
+export interface Workflow<T, E> {
+  /**
+   * Emits an event to trigger a state transition for the given entity.
+   *
+   * @param params - An object containing the event, the unique identifier (URN) of the entity, and an optional payload.
+   * @returns A promise that resolves to the updated entity.
+   */
+  emit(params: { event: E; urn: string; payload?: object }): Promise<T>;
+}
+
+/**
+ * Defines a workflow interface that can emit events and update the state of an entity.
+ *
+ * @template T - The type of the entity being managed.
+ * @template E - The type of events that can trigger transitions.
+ */
 export interface Workflow<T, E> {
   emit(params: { event: E; urn: string; payload?: object }): Promise<T>;
 }
@@ -19,9 +41,12 @@ export interface Workflow<T, E> {
 export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit {
   private readonly logger = new Logger(WorkflowService.name);
   private readonly actionsOnStatusChanged: Map<
-    S,
-    Map<S, ((params: { entity: T; payload?: P | T | object | string }) => Promise<T>)[]>
-  > = new Map();
+    String,
+    {
+      action:
+      (params: { entity: T; payload?: P | T | object | string }) => Promise<T>,
+      failOnError?: boolean
+    }[]> = new Map();
   private readonly actionsOnEvent: Map<
     E,
     ((params: { entity: T; payload?: P | T | object | string }) => Promise<T>)[]
@@ -30,7 +55,7 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
   constructor(
     private readonly definition: WorkflowDefinition<T, P, E, S>,
     private readonly moduleRef: ModuleRef,
-  ) {}
+  ) { }
 
   onModuleInit() {
     // Collect all actions from the definition
@@ -67,14 +92,15 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
                   `Action method ${method} must have signature (params: { entity: T, payload?: P | T | object | string })`,
                 );
               }
-              const { from, to } = statusChanged;
-              if (!this.actionsOnStatusChanged.has(from)) {
-                this.actionsOnStatusChanged.set(from, new Map());
+
+              const from = Reflect.getMetadata('from', instance, method);
+              const to = Reflect.getMetadata('to', instance, method);
+              const key = `${from}-${to}`;
+              if (!this.actionsOnStatusChanged.has(key)) {
+                this.actionsOnStatusChanged.set(key, []);
               }
-              if (!this.actionsOnStatusChanged.get(from)?.has(to)) {
-                this.actionsOnStatusChanged.get(from)?.set(to, []);
-              }
-              this.actionsOnStatusChanged.get(from)?.get(to)?.push(instance[method].bind(instance));
+
+              this.actionsOnStatusChanged.get(key)?.push({ action: instance[method].bind(instance), failOnError: Reflect.getMetadata('failOnError', instance, method) });
             }
           }
         }
@@ -202,7 +228,7 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
 
         ({
           failed,
-          order: entity,
+          Element: entity,
           message,
         } = await this.executeActions(
           transition,
@@ -220,29 +246,57 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
         if (failed) {
           this.logger.log(`Transition failed. Setting status to failed. ${message}`, urn);
           await this.definition.Entity.update(entity, this.definition.FailedState);
-          this.logger.log(`Order transitioned to failed status. ${message}`, urn);
+          this.logger.log(`Element transitioned to failed status. ${message}`, urn);
           break;
         }
 
         entity = await this.definition.Entity.update(entity, nextStatus);
 
-        this.logger.log(`Order transitioned from ${entityCurrentState} to ${nextStatus} ${message}`, urn);
+        this.logger.log(`Element transitioned from ${entityCurrentState} to ${nextStatus} ${message}`, urn);
+
+        // once entity has change it status and 
+
+        const statusChangeKey = `${entityCurrentState}-${nextStatus}`;
+        if (this.actionsOnStatusChanged.has(statusChangeKey)) {
+          const actions = this.actionsOnStatusChanged.get(statusChangeKey);
+          if (actions && actions.length > 0) {
+            this.logger.log(`Executing actions for status change from ${entityCurrentState} to ${nextStatus}`, urn);
+            for (const action of actions) {
+              this.logger.log(`Executing action ${action.action.name}`, urn);
+              try {
+                entity = await action.action({ entity, payload });
+              } catch (error) {
+                this.logger.error(`Action ${action.action.name} failed: ${error.message}`, urn);
+                failed = action.failOnError;
+                break;
+              }
+            }
+          }
+        }
+
+        if (failed) {
+          this.logger.log(`Transition has succeded by a post on status change event has failed. ${message}`, urn);
+          await this.definition.Entity.update(entity, this.definition.FailedState);
+          this.logger.log(`Element transitioned to failed status. ${message}`, urn);
+          break;
+        }
 
         if (this.isInIdleStatus(entity)) {
-          this.logger.log(`Order: ${urn} is idle in ${nextStatus} status. Waiting for external event...`);
+          this.logger.log(`Element: ${urn} is idle in ${nextStatus} status. Waiting for external event...`);
           break; // Break the loop if the status is idle and waiting for an external event
         }
 
         currentEvent = this.nextEvent(entity);
         entityCurrentState = this.definition.Entity.status(entity);
 
+
         this.logger.log(`Next event: ${currentEvent ?? 'none'} Next status: ${entityCurrentState}`, urn);
       } while (currentEvent);
 
       return entity;
     } catch (error) {
-      const message = `An error occurred while transitioning the order ${error?.message ?? ''}`;
-      throw new Error(`Order: ${urn} Event: ${event} - ${message}.`);
+      const message = `An error occurred while transitioning the Element ${error?.message ?? ''}`;
+      throw new Error(`Element: ${urn} Event: ${event} - ${message}.`);
     }
   }
 
@@ -257,7 +311,7 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
     urn: string,
   ) {
     if (!transition.actions) {
-      return { failed: false, order: entity, message };
+      return { failed: false, Element: entity, message };
     }
     const actions = await transition.actions;
     let failed = false;
@@ -274,7 +328,7 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
       message = error?.message;
       failed = true;
     }
-    return { failed, order: entity, message };
+    return { failed, Element: entity, message };
   }
 
   private nextEvent(entity: T): E | null {
@@ -284,7 +338,7 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
     );
 
     if (nextTransitions && nextTransitions.length > 1) {
-      // Determine which of the next transitions to take based on the order and conditions.
+      // Determine which of the next transitions to take based on the Element and conditions.
       for (const transition of nextTransitions) {
         const transitionEvent = this.definition.Transitions.find((t) => t.event === transition.event);
         if (transitionEvent) {

@@ -78,9 +78,31 @@ export class MultipleHandlersOrderActions {
 @WorkflowAction()
 export class StatusOrderActions {
   @OnStatusChanged({ from: OrderStatus.Pending, to: OrderStatus.Processing })
-  onStatusChanged(entity: Order, payload: any) {
-    entity.status = payload.status;
+  onStatusChanged(params: { entity: Order; payload: any }) {
+    const { entity, payload } = params;
     entity.name = 'new name after status changed to processing';
+    return Promise.resolve(entity);
+  }
+}
+
+@Injectable()
+@WorkflowAction()
+export class FailingStatusOrderActions {
+  @OnStatusChanged({ from: OrderStatus.Pending, to: OrderStatus.Processing })
+  onStatusChanged(params: { entity: Order; payload: any }) {
+    const { entity, payload } = params;
+    throw new Error("must be fail")
+    return Promise.resolve(entity);
+  }
+}
+
+@Injectable()
+@WorkflowAction()
+export class FailingButNotStatusOrderActions {
+  @OnStatusChanged({ from: OrderStatus.Pending, to: OrderStatus.Processing, failOnError: false })
+  onStatusChanged(params: { entity: Order; payload: any }) {
+    const { entity, payload } = params;
+    throw new Error("must be fail")
     return Promise.resolve(entity);
   }
 }
@@ -245,33 +267,91 @@ describe('Simple Order Workflow', () => {
     expect(result.name).toBe('Order 12323');
   });
 
-  // it('must call all the actions defined in the workflow and all the status change handlers', async () => {
-  //   const order = new Order();
-  //   order.urn = 'urn:order:123';
-  //   order.name = 'Order 123';
-  //   order.price = 100;
-  //   order.items = ['Item 1', 'Item 2', 'Item 3'];
-  //   order.status = OrderStatus.Pending;
+  it('must call all the actions defined in the workflow and all the status change handlers', async () => {
+    const order = new Order();
+    order.urn = 'urn:order:123';
+    order.name = 'Order 123';
+    order.price = 100;
+    order.items = ['Item 1', 'Item 2', 'Item 3'];
+    order.status = OrderStatus.Pending;
 
-  //   const definition = simpleDefinition(order);
+    const definition = simpleDefinition(order);
 
-  //   definition.Actions = [StatusOrderActions];
+    definition.Actions = [StatusOrderActions];
 
-  //   const module: TestingModule = await Test.createTestingModule({
-  //     imports: [
-  //       WorkflowModule.register({
-  //         name: 'simpleworkflow',
-  //         definition,
-  //       }),
-  //     ],
-  //     providers: [StatusOrderActions],
-  //     exports: [ModuleRef],
-  //   }).compile();
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [
+        WorkflowModule.register({
+          name: 'simpleworkflow',
+          definition,
+        }),
+      ],
+      providers: [StatusOrderActions],
+      exports: [ModuleRef],
+    }).compile();
 
-  //   const orderWorkflow = await module.resolve('simpleworkflow');
-  //   orderWorkflow.onModuleInit();
-  //   const result = await orderWorkflow.emit({ urn: order.urn, event: OrderEvent.Submit });
-  //   expect(result.status).toBe(OrderStatus.Processing);
-  //   expect(result.name).toBe('new name after status changed to processing');
-  // });
+    const orderWorkflow = await module.resolve('simpleworkflow');
+    orderWorkflow.onModuleInit();
+    const result = await orderWorkflow.emit({ urn: order.urn, event: OrderEvent.Submit });
+    expect(result.status).toBe(OrderStatus.Processing);
+    expect(result.name).toBe('new name after status changed to processing');
+  });
+
+  it('must be failed when on status change action fails', async () => {
+    const order = new Order();
+    order.urn = 'urn:order:123';
+    order.name = 'Order 123';
+    order.price = 100;
+    order.items = ['Item 1', 'Item 2', 'Item 3'];
+    order.status = OrderStatus.Pending;
+
+    const definition = simpleDefinition(order);
+
+    definition.Actions = [FailingStatusOrderActions];
+
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [
+        WorkflowModule.register({
+          name: 'simpleworkflow',
+          definition,
+        }),
+      ],
+      providers: [FailingStatusOrderActions],
+      exports: [ModuleRef],
+    }).compile();
+
+    const orderWorkflow = await module.resolve('simpleworkflow');
+    orderWorkflow.onModuleInit();
+    const result = await orderWorkflow.emit({ urn: order.urn, event: OrderEvent.Submit });
+    expect(result.status).toBe(OrderStatus.Failed);
+  });
+
+  it('must NOT be failed when on status change action fails but failOnError is false', async () => {
+    const order = new Order();
+    order.urn = 'urn:order:123';
+    order.name = 'Order 123';
+    order.price = 100;
+    order.items = ['Item 1', 'Item 2', 'Item 3'];
+    order.status = OrderStatus.Pending;
+
+    const definition = simpleDefinition(order);
+
+    definition.Actions = [FailingButNotStatusOrderActions];
+
+    const module: TestingModule = await Test.createTestingModule({
+      imports: [
+        WorkflowModule.register({
+          name: 'simpleworkflow',
+          definition,
+        }),
+      ],
+      providers: [FailingButNotStatusOrderActions],
+      exports: [ModuleRef],
+    }).compile();
+
+    const orderWorkflow = await module.resolve('simpleworkflow');
+    orderWorkflow.onModuleInit();
+    const result = await orderWorkflow.emit({ urn: order.urn, event: OrderEvent.Submit });
+    expect(result.status).toBe(OrderStatus.Processing);
+  });
 });

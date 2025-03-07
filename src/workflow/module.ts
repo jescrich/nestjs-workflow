@@ -1,6 +1,7 @@
 import { DynamicModule, Module } from '@nestjs/common';
 import { WorkflowDefinition } from './definition';
 import WorkflowService from './service';
+import { ModuleRef } from '@nestjs/core';
 
 @Module({})
 /**
@@ -22,21 +23,27 @@ export class WorkflowModule {
     name: string;
     definition: WorkflowDefinition<T, P, Event, State>;
   }): DynamicModule {
-    const service = new WorkflowService(params.definition);
 
     return {
       module: WorkflowModule,
+      imports: [
+        
+      ],
       providers: [
         {
           provide: params.name,
-          useValue: service,
+          useFactory: (moduleRef) => {
+            return new WorkflowService(params.definition, moduleRef);
+          },
+          inject: [ModuleRef],
         },
       ],
       exports: [
         {
           provide: params.name,
-          useValue: service,
+          useExisting: WorkflowService,
         },
+        ModuleRef,
       ],
     };
   }

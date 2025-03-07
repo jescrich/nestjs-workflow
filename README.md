@@ -1,9 +1,7 @@
 # NestJS Workflow & State Machine
-
 A flexible workflow engine built on top of NestJS framework, enabling developers to create, manage, and execute complex workflows in their Node.js applications.
 
 ## Features
-
 - Workflow Definitions: Define workflows using a simple, declarative syntax
 - State Management: Track and persist workflow states
 - Event-Driven Architecture: Built on NestJS's event system for flexible workflow triggers
@@ -13,13 +11,11 @@ A flexible workflow engine built on top of NestJS framework, enabling developers
 - Integration Friendly: Seamlessly integrates with existing NestJS applications
 
 ## Installation
-
 ```bash
 npm install @jescrich/nestjs-workflow
 ```
 
 Or using yarn:
-
 ```bash
 yarn add @jescrich/nestjs-workflow
 ```
@@ -27,10 +23,32 @@ yarn add @jescrich/nestjs-workflow
 ## Quick Start
 
 ### Module Registration
-
 ```typescript
 import { Module } from '@nestjs/common';
 import { WorkflowModule } from '@jescrich/nestjs-workflow';
+
+// Register a workflow
+@Module({
+  imports: [
+    WorkflowModule.register({
+      name: 'simpleworkflow',
+      definition: orderWorkflowDefinition,
+    }),
+  ],
+})
+export class AppModule {}
+
+// Inject and use in a service
+@Injectable()
+class OrderService {
+    constructor(
+        @Inject('simpleworkflow')
+        private readonly orderWorkflow: Workflow<Order, OrderEvent>) {}
+
+    async submitOrder(urn: string) {
+        return await this.orderWorkflow.emit({ urn, event: OrderEvent.Submit });
+    }
+}
 
 @Module({
   imports: [
@@ -45,7 +63,6 @@ export class AppModule {}
 ```
 
 ### Define a Workflow
-
 ```typescript
 import { WorkflowDefinition } from '@jescrich/nestjs-workflow';
 
@@ -129,7 +146,6 @@ const orderWorkflowDefinition = (entity: Order): WorkflowDefinition<Order, any, 
 ```
 
 ### Use the Workflow in a Service
-
 ```typescript
 import { Injectable } from '@nestjs/common';
 import { WorkflowService } from '@jescrich/nestjs-workflow';
@@ -183,7 +199,6 @@ export class OrderService {
 ```
 
 ## Configuration Options
-
 The WorkflowModule.forRoot() method accepts the following configuration options:
 
 ```typescript
@@ -195,6 +210,131 @@ interface WorkflowModuleOptions {
 }
 ```
 
-## Advanced Usage
+## Configuring Actions and Conditions
+NestJS Workflow provides two different approaches for configuring actions and conditions in your workflows:
 
+### 1. Inline Functions in Transitions
+You can define actions and conditions directly in the transition definition as shown in the example above:
+
+```typescript
+{
+  from: OrderStatus.Pending,
+  to: OrderStatus.Processing,
+  event: OrderEvent.Submit,
+  conditions: [(entity: Order, payload: any) => entity.price > 10],
+  actions: [
+    (entity: Order, payload: any) => {
+      // Perform action
+      return Promise.resolve(entity);
+    },
+  ],
+}
+```
+
+### 2. Using Decorators (Class-based approach)
+For more complex workflows, you can use a class-based approach with decorators:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { WorkflowAction, OnEvent, OnStatusChanged } from '@jescrich/nestjs-workflow';
+
+@Injectable()
+@WorkflowAction()
+export class OrderActions {
+  // Handler triggered on specific event
+  @OnEvent({ event: OrderEvent.Submit })
+  execute(params: { entity: Order; payload: any }) {
+    const { entity, payload } = params;
+    entity.price = entity.price * 100;
+    return Promise.resolve(entity);
+  }
+
+  // Handler triggered when status changes
+  @OnStatusChanged({ from: OrderStatus.Pending, to: OrderStatus.Processing })
+  onStatusChanged(params: { entity: Order; payload: any }) {
+    const { entity, payload } = params;
+    entity.name = 'Status changed to processing';
+    return Promise.resolve(entity);
+  }
+}
+```
+
+Then include these action classes in your workflow definition:
+
+```typescript
+const definition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
+  Actions: [OrderActions],
+  // ...other properties
+  Transitions: [
+    {
+      from: OrderStatus.Pending,
+      to: OrderStatus.Processing,
+      event: OrderEvent.Submit,
+    },
+    // Other transitions
+  ],
+  // ...
+};
+```
+
+### Execution Order with @OnEvent
+You can control the execution order of multiple handlers for the same event:
+
+```typescript
+@Injectable()
+@WorkflowAction()
+export class OrderActions {
+  @OnEvent({ event: OrderEvent.Submit, order: 1 })
+  firstHandler(params: { entity: Order; payload: any }) {
+    // Executes first
+    return Promise.resolve(params.entity);
+  }
+
+  @OnEvent({ event: OrderEvent.Submit, order: 2 })
+  secondHandler(params: { entity: Order; payload: any }) {
+    // Executes second
+    return Promise.resolve(params.entity);
+  }
+}
+```
+
+### Error Handling with @OnStatusChanged
+By default, if a status change handler fails, the workflow will transition to the failed state:
+
+```typescript
+@OnStatusChanged({ from: OrderStatus.Pending, to: OrderStatus.Processing })
+onStatusChanged(params: { entity: Order; payload: any }) {
+  // If this throws an error, the workflow will move to the failed state
+}
+```
+
+You can disable this behavior by setting failOnError: false:
+
+```typescript
+@OnStatusChanged({ 
+  from: OrderStatus.Pending, 
+  to: OrderStatus.Processing, 
+  failOnError: false 
+})
+onStatusChanged(params: { entity: Order; payload: any }) {
+  // If this throws an error, the workflow will continue to the next state
+}
+```
+
+Remember to register your action classes as providers in your module:
+
+```typescript
+@Module({
+  imports: [
+    WorkflowModule.register({
+      name: 'orderWorkflow',
+      definition,
+    }),
+  ],
+  providers: [OrderActions],
+})
+export class OrderModule {}
+```
+
+## Advanced Usage
 For more advanced usage, including custom actions, conditions, and event handling, please check the documentation.

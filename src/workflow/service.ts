@@ -1,6 +1,7 @@
-import { BadRequestException, Injectable, Logger } from '@nestjs/common';
+import { BadRequestException, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
 import { WorkflowDefinition } from './definition';
 import { TransitionEvent } from './definition';
+import { ModuleRef } from '@nestjs/core';
 
 export interface Workflow<T, E> {
   emit(params: { event: E; urn: string; payload?: object }): Promise<T>;
@@ -15,35 +16,34 @@ export interface Workflow<T, E> {
  * @typeParam E - The type of events that can trigger transitions
  * @typeParam S - The type of states the entity can be in
  */
-export default class WorkflowService<T, P, E, S> implements Workflow<T, E> {
+export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit {
   private readonly logger = new Logger(WorkflowService.name);
+  private readonly actions: Map<E, (entity: T, payload?: P | T | object | string) => Promise<T>> = new Map();
+
+  @Inject()
+  private readonly moduleRef: ModuleRef;
+
   constructor(private readonly definition: WorkflowDefinition<T, P, E, S>) {}
+  
+  onModuleInit() {
+    // Collect all actions from the definition
+    this.definition.Actions?.forEach((action) => {
+      const instance = this.moduleRef.get(action, { strict: false });
+      if (instance && Reflect.getMetadata('isWorkflowAction', action)) {
+        const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(instance));
+        for (const method of methods) {
+          const event = Reflect.getMetadata('onEvent', instance, method);
+          if (event) {
+            this.actions.set(event, instance[method].bind(instance));
+          }
+        }
+      }
+    });
 
-  // /**
-  //  * Starts a new order workflow
-  //  *
-  //  * @param params - The parameters for creating the order.
-  //  * @param params.source - The source order object.
-  //  * @returns A promise that resolves to the created order.
-  //  */
-  // public async start(params: { order: Order }): Promise<Order> {
-  //   const { order } = params;
-
-  //   this.log(order.id, `Starting order workflow for order: ${order.id}`);
-
-  //   const localOrder = await this.repository.createOrUpdate(order);
-  //   return await this.emit({ event: OrderEvent.Create, id: localOrder.id, payload: order.request?.payload });
-  // }
-
-  // public async emit(params: { urn: string; event: E; payload?: T | P | string }): Promise<T> {
-  //   const { urn, event, payload } = params;
-  //   return await this.emit({ event, urn, payload });
-  // }
-
-  // public emit(params: { event: E; urn: string; payload?: object }): Promise<T> {
-  //   const { event, urn, payload } = params;
-  //   return this.emit2({ event, urn, payload });
-  // }
+    this.logger.log(`Initialized with ${this.actions.size} actions`);
+    this.logger.log(`Initialized with ${this.definition.Transitions.length} transitions`);
+    this.logger.log(`Initialized with ${this.definition.Conditions?.length} conditions`);
+  }
 
   /**
    * Emits an event to trigger a state transition for an entity
@@ -139,6 +139,13 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E> {
         this.logger.log(`Executing transition from ${entityCurrentState} to ${nextStatus}`, urn);
 
         let failed;
+
+        if (this.actions.has(transition.event)) {
+          const action = this.actions.get(transition.event);
+          if (action) {
+            entity = await action(entity, payload);
+          }
+        }
 
         ({
           failed,

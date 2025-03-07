@@ -1,0 +1,38 @@
+{
+    "defaultSeverity": "error",
+    "env": {
+        "node": true
+    },
+    "extends": [
+        "tslint:recommended"
+    ],
+    "jsRules": {},
+    "rules": {
+        "trailing-comma": [
+            false
+        ],
+        "max-line-length": false,
+        "object-literal-sort-keys": false,
+        "no-trailing-whitespace": false,
+        "no-console": false,
+        "no-construct": false,
+        "no-var-requires": true,
+        "max-classes-per-file": false,
+        "indent": [
+            true,
+            "spaces",
+            4
+        ]
+    },
+    "settings": {
+        "import/parsers": {
+            "@typescript-eslint/parser": [
+                ".ts"
+            ]
+        },
+        "import/resolver": {
+            "typescript": {}
+        }
+    },
+    "rulesDirectory": []
+}

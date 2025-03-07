@@ -1,0 +1,71 @@
+name: Publish Package
+
+on:
+  release:
+    types: [created]
+  push:
+    branches: [ "main", "develop" ]
+    paths-ignore:
+      - 'package.json'
+      - '.github/workflows/**'
+      - 'README.md'
+
+  workflow_dispatch:
+
+jobs:
+  publish-gpr:
+    name: Build and Publish to GPR
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+      packages: write
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://npm.pkg.github.com/
+      - run: yarn
+      - run: |
+          git config --global user.email "gitops@joseescrich.com"
+          git config --global user.name "jes"
+          if [ "${{ github.ref }}" == "refs/heads/develop" ]; then
+            yarn version --new-version "$(node -p "require('./package.json').version")-snapshot.$(date +%Y%m%d%H%M%S)"
+          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            yarn version --patch
+          fi
+      - run: yarn build
+      - run: npm publish --registry=https://npm.pkg.github.com/
+        name: Publish to GitHub Package Registry
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.GH_TOKEN}}
+      - run: |
+          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
+            git push origin HEAD:${{ github.ref }}
+          fi
+        name: Push Version
+        env:
+          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
+
+  publish-npm:
+    name: Build and Publish to NPM
+    runs-on: ubuntu-latest
+    needs: publish-gpr
+    permissions:
+      contents: write
+      packages: write
+    if: github.ref == 'refs/heads/main'    
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          registry-url: https://registry.npmjs.org/ # Use NPM registry for setup
+      - run: yarn
+      - run: yarn build
+      - run: |
+          npm config set //registry.npmjs.org/:_authToken=${{secrets.NPM_TOKEN}}
+          npm publish --access=public --registry=https://registry.npmjs.org/
+        name: Publish to NPM
+        env:
+          NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}

@@ -1,3 +1,5 @@
+![NestJS Workflow](https://joseescrich.com/logos/nestjs-workflow.png)
+
 # NestJS Workflow & State Machine
 
 A flexible workflow engine built on top of NestJS framework, enabling developers to create, manage, and execute complex workflows in their Node.js applications.

@@ -12,6 +12,8 @@ A flexible workflow engine built on top of NestJS framework, enabling developers
 - TypeScript Support: Full TypeScript support with strong typing
 - Integration Friendly: Seamlessly integrates with existing NestJS applications
 
+Documentation: https://jescrich.github.io/libraries/docs/workflow/intro
+
 ## Installation
 ```bash
 npm install @jescrich/nestjs-workflow

@@ -9,6 +9,9 @@ on:
       - 'package.json'
       - '.github/workflows/**'
       - 'README.md'
+      - 'CHANGELOG.md'
+      - 'CONTRIBUTING.md'
+      - 'CODE_OF_CONDUCT.md'
 
   workflow_dispatch:
 

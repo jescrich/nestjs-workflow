@@ -2,6 +2,8 @@ import { DynamicModule, ForwardReference, Module, Provider, Type } from '@nestjs
 import { WorkflowDefinition } from './definition';
 import WorkflowService from './service';
 import { ModuleRef } from '@nestjs/core';
+import { KafkaModule } from '@this/kafka/module';
+import { KafkaClient } from '@this/kafka/client';
 
 @Module({})
 /**
@@ -24,8 +26,22 @@ export class WorkflowModule {
     definition: WorkflowDefinition<T, P, Event, State>;
     imports?: Array<Type<any> | DynamicModule | Promise<DynamicModule> | ForwardReference>;
     providers?: Provider[]
+    kafka?: {
+      enabled: boolean;
+      clientId: string;
+      brokers: string;
+    }
   }): DynamicModule {
 
+    if (params.kafka && params.kafka.enabled) {
+      params.imports?.push(
+        KafkaModule.register({
+          brokers: params.kafka.brokers,
+          clientId: params.kafka.clientId,
+        })
+      )
+    }
+    
     return {
       module: WorkflowModule,
       imports: [

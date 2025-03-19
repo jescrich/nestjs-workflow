@@ -1,7 +1,9 @@
 import { BadRequestException, Inject, Injectable, Logger, OnModuleInit } from '@nestjs/common';
-import { WorkflowDefinition } from './definition';
+import { KafkaEvent, WorkflowDefinition } from './definition';
 import { TransitionEvent } from './definition';
 import { ModuleRef } from '@nestjs/core';
+import { KafkaClient } from '@this/kafka/client';
+import { EventMessage, IEventHandler } from '@this/kafka';
 
 /**
  * Defines a workflow interface that can emit events and update the state of an entity.
@@ -39,6 +41,10 @@ export interface Workflow<T, E> {
  * @typeParam S - The type of states the entity can be in
  */
 export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit {
+
+  @Inject()
+  private readonly kafkaClient: KafkaClient;
+
   private readonly logger = new Logger(WorkflowService.name);
   private readonly actionsOnStatusChanged: Map<
     String,
@@ -55,62 +61,18 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
   constructor(
     private readonly definition: WorkflowDefinition<T, P, E, S>,
     private readonly moduleRef: ModuleRef,
-  ) { }
+  ) {
+    this.logger.log(`Initializing workflow: ${this.definition.name}`, this.definition.name);
+   }
 
-  onModuleInit() {
-    // Collect all actions from the definition
+  async onModuleInit() {
 
-    if (!this.moduleRef) {
-      throw new Error('ModuleRef is not available');
-    }
-    if (this.definition.Actions) {
-      for (const action of this.definition.Actions) {
-        const instance = this.moduleRef.get(action, { strict: false });
-        if (instance && Reflect.getMetadata('isWorkflowAction', action)) {
-          const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(instance));
-          for (const method of methods) {
-            const event = Reflect.getMetadata('onEvent', instance, method);
-            const statusChanged = Reflect.getMetadata('onStatusChanged', instance, method);
+    this.configureActions();
 
-            if (event) {
-              const methodParams = Reflect.getMetadata('design:paramtypes', instance, method);
-              if (!methodParams || methodParams.length !== 1 || !methodParams[0].name.includes('Object')) {
-                throw new Error(
-                  `Action method ${method} must have signature (params: { entity: T, payload?: P | T | object | string })`,
-                );
-              }
-              if (!this.actionsOnEvent.has(event)) {
-                this.actionsOnEvent.set(event, []);
-              }
-              this.actionsOnEvent.get(event)?.push(instance[method].bind(instance));
-            }
+    this.configureConditions();
 
-            if (statusChanged) {
-              const methodParams = Reflect.getMetadata('design:paramtypes', instance, method);
-              if (!methodParams || methodParams.length !== 1 || !methodParams[0].name.includes('Object')) {
-                throw new Error(
-                  `Action method ${method} must have signature (params: { entity: T, payload?: P | T | object | string })`,
-                );
-              }
+    await this.initializeKakfaConsumers();
 
-              const from = Reflect.getMetadata('from', instance, method);
-              const to = Reflect.getMetadata('to', instance, method);
-              const key = `${from}-${to}`;
-              if (!this.actionsOnStatusChanged.has(key)) {
-                this.actionsOnStatusChanged.set(key, []);
-              }
-
-              this.actionsOnStatusChanged.get(key)?.push({ action: instance[method].bind(instance), failOnError: Reflect.getMetadata('failOnError', instance, method) });
-            }
-          }
-        }
-      }
-    }
-
-    this.logger.log(`Initialized with ${this.actionsOnEvent.size} actions on events`);
-    this.logger.log(`Initialized with ${this.actionsOnStatusChanged.size} actions on status changes`);
-    this.logger.log(`Initialized with ${this.definition.Transitions.length} transitions`);
-    this.logger.log(`Initialized with ${this.definition.Conditions?.length} conditions`);
   }
 
   /**
@@ -230,7 +192,7 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
           failed,
           Element: entity,
           message,
-        } = await this.executeActions(
+        } = await this.executeInlineActions(
           transition,
           entity,
           currentEvent,
@@ -300,7 +262,7 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
     }
   }
 
-  private async executeActions(
+  private async executeInlineActions(
     transition: TransitionEvent<T, P, E, S>,
     entity: T,
     currentEvent: E,
@@ -379,5 +341,92 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
     }
 
     return this.definition.IdleStates.includes(status);
+  }
+
+  private configureActions() {
+    try {
+      if (this.definition.Actions) {
+        for (const action of this.definition.Actions) {
+          const instance = this.moduleRef.get(action, { strict: false });
+          if (instance && Reflect.getMetadata('isWorkflowAction', action)) {
+            const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(instance));
+            for (const method of methods) {
+              const event = Reflect.getMetadata('onEvent', instance, method);
+              const statusChanged = Reflect.getMetadata('onStatusChanged', instance, method);
+
+              if (event) {
+                const methodParams = Reflect.getMetadata('design:paramtypes', instance, method);
+                if (!methodParams || methodParams.length !== 1 || !methodParams[0].name.includes('Object')) {
+                  throw new Error(
+                    `Action method ${method} must have signature (params: { entity: T, payload?: P | T | object | string })`,
+                  );
+                }
+                if (!this.actionsOnEvent.has(event)) {
+                  this.actionsOnEvent.set(event, []);
+                }
+                this.actionsOnEvent.get(event)?.push(instance[method].bind(instance));
+              }
+
+              if (statusChanged) {
+                const methodParams = Reflect.getMetadata('design:paramtypes', instance, method);
+                if (!methodParams || methodParams.length !== 1 || !methodParams[0].name.includes('Object')) {
+                  throw new Error(
+                    `Action method ${method} must have signature (params: { entity: T, payload?: P | T | object | string })`,
+                  );
+                }
+
+                const from = Reflect.getMetadata('from', instance, method);
+                const to = Reflect.getMetadata('to', instance, method);
+                const key = `${from}-${to}`;
+                if (!this.actionsOnStatusChanged.has(key)) {
+                  this.actionsOnStatusChanged.set(key, []);
+                }
+
+                this.actionsOnStatusChanged.get(key)?.push({ action: instance[method].bind(instance), failOnError: Reflect.getMetadata('failOnError', instance, method) });
+              }
+            }
+          }
+        }
+      }
+
+      this.logger.log(`Initialized with ${this.actionsOnEvent.size} actions on events`);
+      this.logger.log(`Initialized with ${this.actionsOnStatusChanged.size} actions on status changes`);
+      this.logger.log(`Initialized with ${this.definition.Transitions.length} transitions`);
+      this.logger.log(`Initialized with ${this.definition.Conditions?.length} conditions`);
+    } catch (e) {
+      this.logger.error("Error trying to initialize workflow actions", e);
+    }
+  }
+
+  private configureConditions() { }
+
+  private async initializeKakfaConsumers() {
+    if (!this.definition.Kafka) {
+      this.logger.log("No Kafka events defined.")
+      return;
+    }
+
+    if (!this.kafkaClient) {
+      this.logger.error("Kafka client not found, have you ever specified the Kafka module in the imports?")
+      return;
+    }
+
+    for (const kafkaDef of this.definition.Kafka?.events) {
+      this.kafkaClient.consume(
+        kafkaDef.topic,
+        this.definition.name + 'consumer',
+        async (params: { key: string; event: T | P; payload?: EventMessage; }) => {
+          const { key, event } = params;
+          this.logger.log(`Kafka Event received on topic ${kafkaDef.topic} with key ${key}`, key)
+          try {
+            this.emit({ event: kafkaDef.event, urn: key, payload: event });
+            this.logger.log(`Kafka Event emmited successfuly`, key);
+          } catch (e) {
+            this.logger.error(`Kafka Event fail to process`, key)
+          }
+        }
+      )
+      this.logger.log('Initializing topic consumption')
+    }
   }
 }

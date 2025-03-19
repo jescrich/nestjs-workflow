@@ -18,6 +18,11 @@ export interface TransitionEvent<T, P, Event, States> {
   conditions?: ((entity: T, payload?: P | T | object | string) => boolean)[];// | Type<any>[];
 }
 
+export interface KafkaEvent<Event> {
+  topic: string;
+  event: Event;
+}
+
 /**
  * Defines the structure of a workflow definition, which includes the following properties:
  * - `FinalStates`: An array of states that represent the final states of the workflow.
@@ -30,12 +35,18 @@ export interface TransitionEvent<T, P, Event, States> {
  * - `Fallback`: An optional function that can be used as a fallback when a transition event is not defined.
  */
 export interface WorkflowDefinition<T, P, Event, State> {
+  name?: string;
   FinalStates: State[];
   IdleStates: State[];
   FailedState: State;
   Transitions: TransitionEvent<T, P, Event, State>[];
   Actions?: Type<any>[];
   Conditions?: Type<any>[];
+  Kafka?: {
+    brokers: string;
+    events: 
+    KafkaEvent<Event>[];
+  },
   Entity: {
     new: () => T;
     update: (entity: T, status: State) => Promise<T>;

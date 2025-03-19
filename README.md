@@ -3,6 +3,19 @@
 # NestJS Workflow & State Machine
 A flexible workflow engine built on top of NestJS framework, enabling developers to create, manage, and execute complex workflows in their Node.js applications.
 
+## Table of Contents
+- [Features](#features)
+- [Stateless Architecture](#stateless-architecture)
+- [Installation](#installation)
+- [Quick Start](#quick-start)
+- [Module Registration](#module-registration)
+- [Define a Workflow](#define-a-workflow)
+- [Message Format](#message-format)
+- [Configuring Actions and Conditions](#configuring-actions-and-conditions)
+- [Complete Example with Kafka Integration](#complete-example-with-kafka-integration)
+- [Kafka Integration](#kafka-integration)
+  
+
 ## Features
 - Workflow Definitions: Define workflows using a simple, declarative syntax
 - State Management: Track and persist workflow states
@@ -12,8 +25,42 @@ A flexible workflow engine built on top of NestJS framework, enabling developers
 - TypeScript Support: Full TypeScript support with strong typing
 - Integration Friendly: Seamlessly integrates with existing NestJS applications
 - Kafka Integration: Easily integrate with Kafka for event-driven workflows
+- Stateless Design: Lightweight implementation with no additional storage requirements
 
 Documentation: https://jescrich.github.io/libraries/docs/workflow/intro
+
+# Stateless Architecture
+## NestJS Workflow is designed with a stateless architecture, which offers several key benefits:
+
+Benefits of Stateless Design
+
+- Simplicity: No additional database or storage configuration required
+- Domain-Driven: State is maintained within your domain entities where it belongs
+- Lightweight: Minimal overhead and dependencies
+- Scalability: Easily scales horizontally with your application
+- Flexibility: Works with any persistence layer or storage mechanism
+- Integration: Seamlessly integrates with your existing data model and repositories
+- The workflow engine doesn't maintain any state itself - instead, it operates on your domain entities, reading their current state and applying transitions according to your defined rules. This approach aligns with domain-driven design principles by keeping the state with the entity it belongs to.
+
+This stateless design means you can:
+
+Use your existing repositories and data access patterns
+Persist workflow state alongside your entity data
+Avoid complex synchronization between separate state stores
+Maintain transactional integrity with your domain operations
+```
+// Example of how state is part of your domain entity
+export class Order {
+  id: string;
+  items: OrderItem[];
+  totalAmount: number;
+  status: OrderStatus; // The workflow state is a property of your entity
+  
+  // Your domain logic here
+}
+```
+
+The workflow engine simply reads and updates this state property according to your defined transitions, without needing to maintain any separate state storage.
 
 ## Installation
 ```bash
@@ -43,30 +90,7 @@ import { WorkflowModule } from '@jescrich/nestjs-workflow';
 })
 export class AppModule {}
 
-// Inject and use in a service
-@Injectable()
-class OrderService {
-    constructor(
-        @Inject('simpleworkflow')
-        private readonly orderWorkflow: Workflow<Order, OrderEvent>) {}
-
-    async submitOrder(urn: string) {
-        return await this.orderWorkflow.emit({ urn, event: OrderEvent.Submit });
-    }
-}
-
-@Module({
-  imports: [
-    WorkflowModule.forRoot({
-      storage: {
-        type: 'memory'
-      }
-    }),
-  ],
-})
-export class AppModule {}
 ```
-
 ### Define a Workflow
 ```typescript
 import { WorkflowDefinition } from '@jescrich/nestjs-workflow';
@@ -200,18 +224,6 @@ export class OrderService {
     
     return result;
   }
-}
-```
-
-## Configuration Options
-The WorkflowModule.forRoot() method accepts the following configuration options:
-
-```typescript
-interface WorkflowModuleOptions {
-  storage: {
-    type: 'memory' | 'database';
-    options?: any;
-  };
 }
 ```
 
@@ -507,6 +519,7 @@ The Kafka messages should include the entity URN so that the workflow engine can
 ```
 
 With this setup, your workflow will automatically react to Kafka messages and trigger the appropriate state transitions based on your workflow definition.
+
 
 
 ## Advanced Usage

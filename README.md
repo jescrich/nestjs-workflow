@@ -11,6 +11,7 @@ A flexible workflow engine built on top of NestJS framework, enabling developers
 - Extensible: Easily extend with custom actions, conditions, and triggers
 - TypeScript Support: Full TypeScript support with strong typing
 - Integration Friendly: Seamlessly integrates with existing NestJS applications
+- Kafka Integration: Easily integrate with Kafka for event-driven workflows
 
 Documentation: https://jescrich.github.io/libraries/docs/workflow/intro
 
@@ -339,6 +340,174 @@ Remember to register your action classes as providers in your module:
 })
 export class OrderModule {}
 ```
+
+## Kafka Integration
+
+NestJS Workflow now supports integration with Apache Kafka, allowing your workflows to react to Kafka events and trigger state transitions based on messages from your event streaming platform.
+
+### Setting Up Kafka Integration
+
+To configure your workflow to listen to Kafka events, you need to add a `Kafka` property to your workflow definition:
+
+```typescript
+const orderWorkflowDefinition = (entity: Order): WorkflowDefinition<Order, any, OrderEvent, OrderStatus> => {
+  return {
+    // ... other workflow properties
+    FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
+    IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+    Transitions: [
+      // Your transitions here
+    ],
+    FailedState: OrderStatus.Failed,
+    
+    // Kafka configuration
+    Kafka: {
+      brokers: 'localhost:9092',
+      events: [
+        { topic: 'orders.submitted', event: OrderEvent.Submit },
+        { topic: 'orders.completed', event: OrderEvent.Complete },
+        { topic: 'orders.failed', event: OrderEvent.Fail }
+      ]
+    },
+    
+    Entity: {
+      // Entity configuration
+      new: () => new Order(),
+      update: async (entity: Order, status: OrderStatus) => {
+        entity.status = status;
+        return entity;
+      },
+      load: async (urn: string) => {
+        // Load entity from storage
+        return entity;
+      },
+      status: (entity: Order) => entity.status,
+      urn: (entity: Order) => entity.urn
+    }
+  };
+};
+```
+
+### How It Works
+
+When you configure Kafka integration:
+
+1. The workflow engine will connect to the specified Kafka brokers
+2. It will subscribe to the topics you've defined in the `events` array
+3. When a message arrives on a subscribed topic, the workflow engine will:
+   - Map the topic to the corresponding workflow event
+   - Extract the entity URN from the message
+   - Load the entity using your defined `Entity.load` function
+   - Emit the mapped workflow event with the Kafka message as payload
+
+### Complete Example with Kafka Integration
+
+```typescript
+import { Injectable, Module } from '@nestjs/common';
+import { WorkflowModule, WorkflowDefinition, WorkflowService } from '@jescrich/nestjs-workflow';
+
+// Define your entity and state/event enums
+export enum OrderEvent {
+  Create = 'order.create',
+  Submit = 'order.submit',
+  Complete = 'order.complete',
+  Fail = 'order.fail',
+}
+
+export enum OrderStatus {
+  Pending = 'pending',
+  Processing = 'processing',
+  Completed = 'completed',
+  Failed = 'failed',
+}
+
+export class Order {
+  urn: string;
+  name: string;
+  price: number;
+  items: string[];
+  status: OrderStatus;
+}
+
+// Create workflow definition with Kafka integration
+const orderWorkflowDefinition = (entity: Order): WorkflowDefinition<Order, any, OrderEvent, OrderStatus> => {
+  return {
+    FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
+    IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+    Transitions: [
+      {
+        from: OrderStatus.Pending,
+        to: OrderStatus.Processing,
+        event: OrderEvent.Submit,
+        conditions: [(entity: Order, payload: any) => entity.price > 10],
+      },
+      {
+        from: OrderStatus.Processing,
+        to: OrderStatus.Completed,
+        event: OrderEvent.Complete,
+      },
+      {
+        from: OrderStatus.Processing,
+        to: OrderStatus.Failed,
+        event: OrderEvent.Fail,
+      },
+    ],
+    FailedState: OrderStatus.Failed,
+    
+    // Kafka configuration
+    Kafka: {
+      brokers: 'localhost:9092',
+      events: [
+        { topic: 'orders.submitted', event: OrderEvent.Submit },
+        { topic: 'orders.completed', event: OrderEvent.Complete },
+        { topic: 'orders.failed', event: OrderEvent.Fail }
+      ]
+    },
+    
+    Entity: {
+      new: () => new Order(),
+      update: async (entity: Order, status: OrderStatus) => {
+        entity.status = status;
+        return entity;
+      },
+      load: async (urn: string) => {
+        // In a real application, load from database
+        const order = new Order();
+        order.urn = urn;
+        order.status = OrderStatus.Pending;
+        return order;
+      },
+      status: (entity: Order) => entity.status,
+      urn: (entity: Order) => entity.urn
+    }
+  };
+};
+
+@Module({
+  imports: [
+    WorkflowModule.register({
+      name: 'orderWorkflow',
+      definition: orderWorkflowDefinition,
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+### Message Format
+
+The Kafka messages should include the entity URN so that the workflow engine can load the correct entity. For example:
+
+```json
+{
+  "urn": "urn:order:123",
+  "price": 150,
+  "items": ["Item 1", "Item 2"]
+}
+```
+
+With this setup, your workflow will automatically react to Kafka messages and trigger the appropriate state transitions based on your workflow definition.
+
 
 ## Advanced Usage
 For more advanced usage, including custom actions, conditions, and event handling, please check the documentation.

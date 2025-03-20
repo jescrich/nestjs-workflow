@@ -6,8 +6,6 @@ import { WorkflowAction } from '@this/workflow/action.class.decorator';
 import { OnEvent } from '@this/workflow/action.event.method.decorator';
 import { OnStatusChanged } from '@this/workflow/action.status.method.decorator';
 import { WorkflowDefinition } from '@this/workflow/definition'; // Adjust path if needed
-import WorkflowService from '@this/workflow/service';
-import exp from 'constants';
 
 export enum OrderEvent {
   Create = 'order.create',

@@ -1,4 +1,5 @@
-import { Type } from "@nestjs/common";
+import { Provider, Type } from '@nestjs/common';
+import { EntityService } from './entity.service';
 
 /**
  * Defines the structure of a transition event in a workflow definition. This includes the following properties:
@@ -14,8 +15,8 @@ export interface TransitionEvent<T, P, Event, States> {
   event: Event | Event[];
   from: States | States[];
   to: States;
-  actions?: ((entity: T, payload?: P | T | object | string) => Promise<T>)[];// | Type<any>[];
-  conditions?: ((entity: T, payload?: P | T | object | string) => boolean)[];// | Type<any>[];
+  actions?: ((entity: T, payload?: P | T | object | string) => Promise<T>)[]; // | Type<any>[];
+  conditions?: ((entity: T, payload?: P | T | object | string) => boolean)[]; // | Type<any>[];
 }
 
 export interface KafkaEvent<Event> {
@@ -44,15 +45,17 @@ export interface WorkflowDefinition<T, P, Event, State> {
   Conditions?: Type<any>[];
   Kafka?: {
     brokers: string;
-    events: 
-    KafkaEvent<Event>[];
-  },
-  Entity: {
-    new: () => T;
-    update: (entity: T, status: State) => Promise<T>;
-    load: (urn: string) => Promise<T>;
-    status: (entity: T) => State;
-    urn: (entity: T) => string;
+    events: KafkaEvent<Event>[];
   };
+  Entity:
+    | Provider<EntityService<T, State>>
+    | Type<EntityService<T, State>>
+    | {
+        new: () => T;
+        update: (entity: T, status: State) => Promise<T>;
+        load: (urn: string) => Promise<T>;
+        status: (entity: T) => State;
+        urn: (entity: T) => string;
+      };
   Fallback?: (entity: T, event: Event, payload?: P | T | object | string) => Promise<T>;
 }

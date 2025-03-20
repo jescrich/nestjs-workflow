@@ -50,8 +50,8 @@ class OrderEntityService implements EntityService<Order, OrderStatus> {
     private readonly repository: OrdersRepository,
   ) {}
 
-  new(): Order {
-    return new Order();
+  new(): Promise<Order> {
+    return Promise.resolve(new Order());
   }
   update(entity: Order, status: OrderStatus): Promise<Order> {
     entity.status = status;

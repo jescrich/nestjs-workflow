@@ -6,7 +6,7 @@ export abstract class EntityService<T, State> {
    * Creates a new instance of the entity
    * @returns A new entity instance
    */
-  abstract new(): T;
+  abstract new(): Promise<T>;
 
   /**
    * Updates the status of an entity

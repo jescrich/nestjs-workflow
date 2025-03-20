@@ -14,7 +14,7 @@ A flexible workflow engine built on top of NestJS framework, enabling developers
 - [Configuring Actions and Conditions](#configuring-actions-and-conditions)
 - [Complete Example with Kafka Integration](#complete-example-with-kafka-integration)
 - [Entity Service](#entity-service)
-- [Kafka Integration](#kafka-integration)
+- [Kafka Integration](#using-entityservice-with-workflow)
   
 ## Features
 - Workflow Definitions: Define workflows using a simple, declarative syntax

@@ -30,6 +30,7 @@ export class Order {
 
 const simpleDefinition = (entity: Order) => {
   const definition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
+    name: "OrderWorkflow",
     FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
     IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
     Transitions: [

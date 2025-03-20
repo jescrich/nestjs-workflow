@@ -11,8 +11,8 @@ import { Type } from "@nestjs/common";
  * as workflow actions classes that are decorated with the `@OnEvent` and/or `@OnStatusChanged` decorator.
  */
 export interface TransitionEvent<T, P, Event, States> {
-  event: Event;
-  from: States;
+  event: Event | Event[];
+  from: States | States[];
   to: States;
   actions?: ((entity: T, payload?: P | T | object | string) => Promise<T>)[];// | Type<any>[];
   conditions?: ((entity: T, payload?: P | T | object | string) => boolean)[];// | Type<any>[];

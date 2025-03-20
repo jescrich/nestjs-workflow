@@ -41,7 +41,6 @@ export interface Workflow<T, E> {
  * @typeParam S - The type of states the entity can be in
  */
 export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit {
-
   @Inject()
   private readonly kafkaClient: KafkaClient;
 
@@ -49,10 +48,10 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
   private readonly actionsOnStatusChanged: Map<
     String,
     {
-      action:
-      (params: { entity: T; payload?: P | T | object | string }) => Promise<T>,
-      failOnError?: boolean
-    }[]> = new Map();
+      action: (params: { entity: T; payload?: P | T | object | string }) => Promise<T>;
+      failOnError?: boolean;
+    }[]
+  > = new Map();
   private readonly actionsOnEvent: Map<
     E,
     ((params: { entity: T; payload?: P | T | object | string }) => Promise<T>)[]
@@ -63,16 +62,14 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
     private readonly moduleRef: ModuleRef,
   ) {
     this.logger.log(`Initializing workflow: ${this.definition.name}`, this.definition.name);
-   }
+  }
 
   async onModuleInit() {
-
     this.configureActions();
 
     this.configureConditions();
 
     await this.initializeKakfaConsumers();
-
   }
 
   /**
@@ -111,14 +108,16 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
         this.logger.warn(`Entity: ${urn} is in a final status. Accepting transitions due to a retry mechanism.`, urn);
       }
 
-      let transitionEvent: { from: S; to: S; event: E } | undefined;
+      let transitionEvent: TransitionEvent<T, P, E, S> | undefined;
       let transition;
       let message = '';
 
       do {
-        transitionEvent = this.definition.Transitions.find(
-          (transition) => transition.event === currentEvent && transition.from === entityCurrentState,
-        );
+        transitionEvent = this.definition.Transitions.find((transition) => {
+          const events = Array.isArray(transition.event) ? transition.event : [transition.event];
+          const states = Array.isArray(transition.from) ? transition.from : [transition.from];
+          return currentEvent && events.includes(currentEvent) && states.includes(entityCurrentState);
+        });
 
         if (!transitionEvent) {
           throw new Error(
@@ -129,9 +128,9 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
         const nextStatus = transitionEvent.to;
 
         const possibleTransitions = this.definition.Transitions.filter(
-          (t) => t.from === entityCurrentState && t.to === nextStatus,
+          (t) => (Array.isArray(t.from) ? t.from.includes(entityCurrentState) : t.from === entityCurrentState) && t.to === nextStatus,
         );
-
+        
         this.logger.log(`Possible transitions for ${urn}: ${JSON.stringify(possibleTransitions)}`, urn);
 
         for (const t of possibleTransitions) {
@@ -170,8 +169,8 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
 
         let failed;
 
-        if (this.actionsOnEvent.has(transition.event)) {
-          const actions = this.actionsOnEvent.get(transition.event);
+        if (this.actionsOnEvent.has(currentEvent)) {
+          const actions = this.actionsOnEvent.get(currentEvent);
           if (actions && actions.length > 0) {
             this.logger.log(`Executing actions for event ${transition.event}`, urn);
 
@@ -216,7 +215,7 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
 
         this.logger.log(`Element transitioned from ${entityCurrentState} to ${nextStatus} ${message}`, urn);
 
-        // once entity has change it status and 
+        // once entity has change it status and
 
         const statusChangeKey = `${entityCurrentState}-${nextStatus}`;
         if (this.actionsOnStatusChanged.has(statusChangeKey)) {
@@ -250,7 +249,6 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
 
         currentEvent = this.nextEvent(entity);
         entityCurrentState = this.definition.Entity.status(entity);
-
 
         this.logger.log(`Next event: ${currentEvent ?? 'none'} Next status: ${entityCurrentState}`, urn);
       } while (currentEvent);
@@ -296,11 +294,11 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
   private nextEvent(entity: T): E | null {
     const status = this.definition.Entity.status(entity);
     const nextTransitions = this.definition.Transitions.filter(
-      (transition) => transition.from === status && transition.to !== this.definition.FailedState,
+      (transition) =>
+        (Array.isArray(transition.from) ? transition.from.includes(status) : transition.from === status) &&
+        transition.to !== this.definition.FailedState,
     );
-
     if (nextTransitions && nextTransitions.length > 1) {
-      // Determine which of the next transitions to take based on the Element and conditions.
       for (const transition of nextTransitions) {
         const transitionEvent = this.definition.Transitions.find((t) => t.event === transition.event);
         if (transitionEvent) {
@@ -321,6 +319,9 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
             }
 
             if (allConditionsMet) {
+              if (Array.isArray(transition.event)) {
+                throw new Error('Multiple transition events are not allowed in a non-idle state');
+              }
               return transition.event;
             } else {
               this.logger.log(`Conditions not met for transition ${transition.event}`);
@@ -329,9 +330,14 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
         }
       }
     } else {
-      return nextTransitions && nextTransitions.length === 1 ? nextTransitions[0].event : null;
+      if (nextTransitions && nextTransitions.length === 1) {
+        if (Array.isArray(nextTransitions[0].event)) {
+          throw new Error('Multiple transition events are not allowed in a non-idle state');
+        }
+        return nextTransitions[0].event;
+      }
     }
-    return nextTransitions && nextTransitions.length === 1 ? nextTransitions[0].event : null;
+    return null;
   }
 
   private isInIdleStatus(entity: T): boolean {
@@ -356,11 +362,15 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
 
               if (event) {
                 const methodParams = Reflect.getMetadata('design:paramtypes', instance, method);
+
                 if (!methodParams || methodParams.length !== 1 || !methodParams[0].name.includes('Object')) {
                   throw new Error(
                     `Action method ${method} must have signature (params: { entity: T, payload?: P | T | object | string })`,
                   );
                 }
+
+                this.validateActionMethod(instance, method);
+                
                 if (!this.actionsOnEvent.has(event)) {
                   this.actionsOnEvent.set(event, []);
                 }
@@ -382,7 +392,10 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
                   this.actionsOnStatusChanged.set(key, []);
                 }
 
-                this.actionsOnStatusChanged.get(key)?.push({ action: instance[method].bind(instance), failOnError: Reflect.getMetadata('failOnError', instance, method) });
+                this.actionsOnStatusChanged.get(key)?.push({
+                  action: instance[method].bind(instance),
+                  failOnError: Reflect.getMetadata('failOnError', instance, method),
+                });
               }
             }
           }
@@ -394,20 +407,21 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
       this.logger.log(`Initialized with ${this.definition.Transitions.length} transitions`);
       this.logger.log(`Initialized with ${this.definition.Conditions?.length} conditions`);
     } catch (e) {
-      this.logger.error("Error trying to initialize workflow actions", e);
+      this.logger.error('Error trying to initialize workflow actions', e);
+      throw e;
     }
   }
 
-  private configureConditions() { }
+  private configureConditions() {}
 
   private async initializeKakfaConsumers() {
     if (!this.definition.Kafka) {
-      this.logger.log("No Kafka events defined.")
+      this.logger.log('No Kafka events defined.');
       return;
     }
 
     if (!this.kafkaClient) {
-      this.logger.error("Kafka client not found, have you ever specified the Kafka module in the imports?")
+      this.logger.error('Kafka client not found, have you ever specified the Kafka module in the imports?');
       return;
     }
 
@@ -415,18 +429,43 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
       this.kafkaClient.consume(
         kafkaDef.topic,
         this.definition.name + 'consumer',
-        async (params: { key: string; event: T | P; payload?: EventMessage; }) => {
+        async (params: { key: string; event: T | P; payload?: EventMessage }) => {
           const { key, event } = params;
-          this.logger.log(`Kafka Event received on topic ${kafkaDef.topic} with key ${key}`, key)
+          this.logger.log(`Kafka Event received on topic ${kafkaDef.topic} with key ${key}`, key);
           try {
             this.emit({ event: kafkaDef.event, urn: key, payload: event });
             this.logger.log(`Kafka Event emmited successfuly`, key);
           } catch (e) {
-            this.logger.error(`Kafka Event fail to process`, key)
+            this.logger.error(`Kafka Event fail to process`, key);
           }
-        }
-      )
-      this.logger.log('Initializing topic consumption')
+        },
+      );
+      this.logger.log('Initializing topic consumption');
     }
   }
+
+  private validateActionMethod = (instance: any, method: string) => {
+    // Create a proxy to intercept the method call
+    const originalMethod = instance[method];
+
+    instance[method] = function (...args: any[]) {
+      if (args.length !== 1) {
+        throw new Error(`Action method ${method} must be called with exactly one parameter`);
+      }
+
+      const param = args[0];
+      if (!param || typeof param !== 'object') {
+        throw new Error(`Action method ${method} parameter must be an object`);
+      }
+
+      if (!('entity' in param)) {
+        throw new Error(`Action method ${method} parameter must have an 'entity' property`);
+      }
+
+      // Optional payload is allowed, no need to validate its presence
+
+      // Call the original method if validation passes
+      return originalMethod.apply(this, args);
+    };
+  };
 }

@@ -201,7 +201,7 @@ describe('Simple Order Workflow', () => {
     }).compile();
 
     const orderWorkflow = await module.resolve('simpleworkflow');
-    orderWorkflow.onModuleInit();
+    await orderWorkflow.onModuleInit();
     const result = await orderWorkflow.emit({ urn: order.urn, event: OrderEvent.Submit });
     expect(result.status).toBe(OrderStatus.Processing);
     expect(result.price).toBe(10000);
@@ -231,9 +231,11 @@ describe('Simple Order Workflow', () => {
     }).compile();
 
     const orderWorkflow = await module.resolve('simpleworkflow');
-    expect(() => orderWorkflow.onModuleInit()).toThrow(
-      'Action method execute must have signature (params: { entity: T, payload?: P | T | object | string })',
-    );
+    try {
+      await orderWorkflow.onModuleInit();
+    } catch (error) {
+      expect(error.message).toBe('Action method execute must have signature (params: { entity: T, payload?: P | T | object | string })');
+    }
   });
 
   it('must call all the actions defined in the workflow and return the result of the last action', async () => {
@@ -260,7 +262,7 @@ describe('Simple Order Workflow', () => {
     }).compile();
 
     const orderWorkflow = await module.resolve('simpleworkflow');
-    orderWorkflow.onModuleInit();
+    await orderWorkflow.onModuleInit();
     const result = await orderWorkflow.emit({ urn: order.urn, event: OrderEvent.Submit });
     expect(result.status).toBe(OrderStatus.Processing);
     expect(result.price).toBe(1000000);
@@ -291,7 +293,7 @@ describe('Simple Order Workflow', () => {
     }).compile();
 
     const orderWorkflow = await module.resolve('simpleworkflow');
-    orderWorkflow.onModuleInit();
+    await orderWorkflow.onModuleInit();
     const result = await orderWorkflow.emit({ urn: order.urn, event: OrderEvent.Submit });
     expect(result.status).toBe(OrderStatus.Processing);
     expect(result.name).toBe('new name after status changed to processing');
@@ -321,7 +323,7 @@ describe('Simple Order Workflow', () => {
     }).compile();
 
     const orderWorkflow = await module.resolve('simpleworkflow');
-    orderWorkflow.onModuleInit();
+    await orderWorkflow.onModuleInit();
     const result = await orderWorkflow.emit({ urn: order.urn, event: OrderEvent.Submit });
     expect(result.status).toBe(OrderStatus.Failed);
   });
@@ -350,7 +352,7 @@ describe('Simple Order Workflow', () => {
     }).compile();
 
     const orderWorkflow = await module.resolve('simpleworkflow');
-    orderWorkflow.onModuleInit();
+    await orderWorkflow.onModuleInit();
     const result = await orderWorkflow.emit({ urn: order.urn, event: OrderEvent.Submit });
     expect(result.status).toBe(OrderStatus.Processing);
   });

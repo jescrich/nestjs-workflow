@@ -13,9 +13,9 @@ A flexible workflow engine built on top of NestJS framework, enabling developers
 - [Message Format](#message-format)
 - [Configuring Actions and Conditions](#configuring-actions-and-conditions)
 - [Complete Example with Kafka Integration](#complete-example-with-kafka-integration)
+- [Entity Service](#entity-service)
 - [Kafka Integration](#kafka-integration)
   
-
 ## Features
 - Workflow Definitions: Define workflows using a simple, declarative syntax
 - State Management: Track and persist workflow states
@@ -520,7 +520,160 @@ The Kafka messages should include the entity URN so that the workflow engine can
 
 With this setup, your workflow will automatically react to Kafka messages and trigger the appropriate state transitions based on your workflow definition.
 
+## Entity Service Implementation
 
+NestJS Workflow allows you to implement an `EntityService` to manage your entity's lifecycle and state. This provides a cleaner separation of concerns between your workflow logic and entity management.
+
+### Creating an EntityService
+
+Instead of defining entity operations inline in your workflow definition, you can create a dedicated service:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { EntityService } from '@jescrich/nestjs-workflow';
+import { Order, OrderStatus } from './order.model';
+import { OrderRepository } from './order.repository';
+
+@Injectable()
+export class OrderEntityService extends EntityService<Order, OrderStatus> {
+  constructor(private readonly orderRepository: OrderRepository) {
+    super();
+  }
+
+  // Create a new entity instance
+  new(): Order {
+    return new Order();
+  }
+
+  // Update entity status
+  async update(entity: Order, status: OrderStatus): Promise<Order> {
+    entity.status = status;
+    return this.orderRepository.save(entity);
+  }
+
+  // Load entity by URN
+  async load(urn: string): Promise<Order> {
+    const order = await this.orderRepository.findByUrn(urn);
+    if (!order) {
+      throw new Error(`Order with URN ${urn} not found`);
+    }
+    return order;
+  }
+
+  // Get current status
+  status(entity: Order): OrderStatus {
+    return entity.status;
+  }
+
+  // Get entity URN
+  urn(entity: Order): string {
+    return entity.urn;
+  }
+}
+```
+
+### Registering the EntityService
+
+Register your EntityService as a provider in your module:
+
+```typescript
+@Module({
+  imports: [
+    TypeOrmModule.forFeature([OrderEntity]),
+  ],
+  providers: [
+    OrderEntityService,
+    OrderRepository,
+  ],
+  exports: [OrderEntityService],
+})
+export class OrderModule {}
+```
+
+### Using EntityService with Workflow
+
+There are two ways to use your EntityService with a workflow:
+
+#### 1. Reference in Workflow Definition
+
+```typescript
+import { Module } from '@nestjs/common';
+import { WorkflowModule } from '@jescrich/nestjs-workflow';
+import { OrderEntityService } from './order-entity.service';
+
+const orderWorkflowDefinition = {
+  FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
+  IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+  Transitions: [
+    // Your transitions here
+  ],
+  FailedState: OrderStatus.Failed,
+  
+  // Reference your EntityService class instead of inline functions
+  Entity: OrderEntityService,
+};
+
+@Module({
+  imports: [
+    WorkflowModule.register({
+      name: 'orderWorkflow',
+      definition: orderWorkflowDefinition,
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+#### 2. Inject into WorkflowService
+
+You can also inject your EntityService directly when creating a WorkflowService instance:
+
+```typescript
+@Injectable()
+export class OrderService {
+  private workflowService: WorkflowService<Order, any, OrderEvent, OrderStatus>;
+  
+  constructor(
+    private readonly moduleRef: ModuleRef,
+    private readonly orderEntityService: OrderEntityService
+  ) {
+    const workflowDefinition = {
+      FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
+      IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+      Transitions: [
+        // Your transitions here
+      ],
+      FailedState: OrderStatus.Failed,
+      
+      // You can still include Entity here, but it will be overridden by the injected service
+      Entity: {
+        new: () => new Order(),
+        // other methods...
+      }
+    };
+    
+    this.workflowService = new WorkflowService(
+      workflowDefinition,
+      this.moduleRef,
+      this.orderEntityService // Inject the entity service
+    );
+  }
+  
+  // Your service methods using workflowService
+}
+```
+
+### Benefits of Using EntityService
+
+Using a dedicated EntityService provides several advantages:
+
+1. **Separation of Concerns**: Keep entity management logic separate from workflow definitions
+2. **Dependency Injection**: Leverage NestJS dependency injection for your entity operations
+3. **Reusability**: Use the same EntityService across multiple workflows
+4. **Testability**: Easier to mock and test your entity operations
+5. **Database Integration**: Cleanly integrate with your database through repositories
+
+This approach is particularly useful for complex applications where entities are stored in databases and require sophisticated loading and persistence logic.
 
 ## Advanced Usage
 For more advanced usage, including custom actions, conditions, and event handling, please check the documentation.

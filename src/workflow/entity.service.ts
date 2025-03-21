@@ -21,7 +21,7 @@ export abstract class EntityService<T, State> {
    * @param urn The unique resource name of the entity
    * @returns The loaded entity
    */
-  abstract load(urn: string): Promise<T>;
+  abstract load(urn: string): Promise<T | null>;
 
   /**
    * Gets the current status of an entity

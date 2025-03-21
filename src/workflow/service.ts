@@ -100,9 +100,9 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
     try {
       this.logger.log(`Event: ${event}`, urn);
 
-      let entity: T = await this.loadEntity(urn);
+      let entity: T | null = await this.loadEntity(urn);
 
-      if (!entity) {
+      if (!entity || entity === null) {
         this.logger.error(`Element not found`, urn);
         throw new BadRequestException(`Entity not found`, urn);
       }
@@ -476,9 +476,10 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
     };
   };
 
-  private async loadEntity(urn: string): Promise<T> {
+  private async loadEntity(urn: string): Promise<T | null> {
     if (this.entityService) {
-      return this.entityService.load(urn);
+      const e = this.entityService.load(urn);
+      return e ?? null;
     }
     return (this.definition.Entity as { load: (urn: string) => Promise<T> }).load(urn);
   }

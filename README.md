@@ -113,7 +113,7 @@ export enum OrderStatus {
 }
 
 export class Order {
-  urn: string;
+  id: string;
   name: string;
   price: number;
   items: string[];
@@ -121,56 +121,55 @@ export class Order {
 }
 
 // Create workflow definition
-const orderWorkflowDefinition = (entity: Order): WorkflowDefinition<Order, any, OrderEvent, OrderStatus> => {
-  return {
-    FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
-    IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
-    Transitions: [
-      {
-        from: OrderStatus.Pending,
-        to: OrderStatus.Processing,
-        event: OrderEvent.Submit,
-        conditions: [(entity: Order, payload: any) => entity.price > 10],
-      },
-      {
-        from: OrderStatus.Pending,
-        to: OrderStatus.Pending,
-        event: OrderEvent.Update,
-        actions: [
-          (entity: Order, payload: any) => {
-            entity.price = payload.price;
-            entity.items = payload.items;
-            return Promise.resolve(entity);
-          },
-        ],
-      },
-      {
-        from: OrderStatus.Processing,
-        to: OrderStatus.Completed,
-        event: OrderEvent.Complete,
-      },
-      {
-        from: OrderStatus.Processing,
-        to: OrderStatus.Failed,
-        event: OrderEvent.Fail,
-      },
-    ],
-    FailedState: OrderStatus.Failed,
-    Entity: {
-      new: () => new Order(),
-      update: async (entity: Order, status: OrderStatus) => {
-        entity.status = status;
-        return entity;
-      },
-      load: async (urn: string) => {
-        return entity;
-      },
-      status: (entity: Order) => entity.status,
-      urn: function (entity: Order): string {
-        return entity.urn;
-      },
+const orderWorkflowDefinition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
+  states: {
+    finals: [OrderStatus.Completed, OrderStatus.Failed],
+    idles: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+    failed: OrderStatus.Failed,
+  },
+  transitions: [
+    {
+      from: OrderStatus.Pending,
+      to: OrderStatus.Processing,
+      event: OrderEvent.Submit,
+      conditions: [(entity: Order, payload: any) => entity.price > 10],
     },
-  };
+    {
+      from: OrderStatus.Pending,
+      to: OrderStatus.Pending,
+      event: OrderEvent.Update,
+      actions: [
+        async (entity: Order, payload: any) => {
+          entity.price = payload.price;
+          entity.items = payload.items;
+          return entity;
+        },
+      ],
+    },
+    {
+      from: OrderStatus.Processing,
+      to: OrderStatus.Completed,
+      event: OrderEvent.Complete,
+    },
+    {
+      from: OrderStatus.Processing,
+      to: OrderStatus.Failed,
+      event: OrderEvent.Fail,
+    },
+  ],
+  entity: {
+    new: () => new Order(),
+    update: async (entity: Order, status: OrderStatus) => {
+      entity.status = status;
+      return entity;
+    },
+    load: async (urn: string) => {
+      // In a real application, load from database
+      return new Order();
+    },
+    status: (entity: Order) => entity.status,
+    urn: (entity: Order) => entity.id,
+  },
 };
 ```
 
@@ -188,33 +187,29 @@ export class OrderService {
   
   async createOrder() {
     const order = new Order();
-    order.urn = 'urn:order:123';
+    order.id = 'order-123';
     order.name = 'Order 123';
     order.price = 100;
     order.items = ['Item 1', 'Item 2', 'Item 3'];
     order.status = OrderStatus.Pending;
     
-    // Initialize workflow with order entity
-    const workflowDefinition = orderWorkflowDefinition(order);
-    const workflow = new WorkflowService<Order, any, OrderEvent, OrderStatus>(workflowDefinition);
-    
     return order;
   }
   
-  async submitOrder(urn: string) {
+  async submitOrder(id: string) {
     // Emit an event to trigger workflow transition
     const result = await this.workflowService.emit({ 
-      urn: urn, 
+      urn: id, 
       event: OrderEvent.Submit 
     });
     
     return result;
   }
   
-  async updateOrder(urn: string, price: number, items: string[]) {
+  async updateOrder(id: string, price: number, items: string[]) {
     // Emit an event with payload to update the order
     const result = await this.workflowService.emit({
-      urn: urn,
+      urn: id,
       event: OrderEvent.Update,
       payload: {
         price: price,
@@ -240,9 +235,9 @@ You can define actions and conditions directly in the transition definition as s
   event: OrderEvent.Submit,
   conditions: [(entity: Order, payload: any) => entity.price > 10],
   actions: [
-    (entity: Order, payload: any) => {
+    async (entity: Order, payload: any) => {
       // Perform action
-      return Promise.resolve(entity);
+      return entity;
     },
   ],
 }
@@ -260,7 +255,7 @@ import { WorkflowAction, OnEvent, OnStatusChanged } from '@jescrich/nestjs-workf
 export class OrderActions {
   // Handler triggered on specific event
   @OnEvent({ event: OrderEvent.Submit })
-  execute(params: { entity: Order; payload: any }) {
+  execute(params: { entity: Order; payload: any }): Promise<Order> {
     const { entity, payload } = params;
     entity.price = entity.price * 100;
     return Promise.resolve(entity);
@@ -268,7 +263,7 @@ export class OrderActions {
 
   // Handler triggered when status changes
   @OnStatusChanged({ from: OrderStatus.Pending, to: OrderStatus.Processing })
-  onStatusChanged(params: { entity: Order; payload: any }) {
+  onStatusChanged(params: { entity: Order; payload: any }): Promise<Order> {
     const { entity, payload } = params;
     entity.name = 'Status changed to processing';
     return Promise.resolve(entity);
@@ -280,9 +275,14 @@ Then include these action classes in your workflow definition:
 
 ```typescript
 const definition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
-  Actions: [OrderActions],
+  actions: [OrderActions],
   // ...other properties
-  Transitions: [
+  states: {
+    finals: [OrderStatus.Completed, OrderStatus.Failed],
+    idles: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+    failed: OrderStatus.Failed,
+  },
+  transitions: [
     {
       from: OrderStatus.Pending,
       to: OrderStatus.Processing,
@@ -302,13 +302,13 @@ You can control the execution order of multiple handlers for the same event:
 @WorkflowAction()
 export class OrderActions {
   @OnEvent({ event: OrderEvent.Submit, order: 1 })
-  firstHandler(params: { entity: Order; payload: any }) {
+  firstHandler(params: { entity: Order; payload: any }): Promise<Order> {
     // Executes first
     return Promise.resolve(params.entity);
   }
 
   @OnEvent({ event: OrderEvent.Submit, order: 2 })
-  secondHandler(params: { entity: Order; payload: any }) {
+  secondHandler(params: { entity: Order; payload: any }): Promise<Order> {
     // Executes second
     return Promise.resolve(params.entity);
   }
@@ -320,8 +320,9 @@ By default, if a status change handler fails, the workflow will transition to th
 
 ```typescript
 @OnStatusChanged({ from: OrderStatus.Pending, to: OrderStatus.Processing })
-onStatusChanged(params: { entity: Order; payload: any }) {
+onStatusChanged(params: { entity: Order; payload: any }): Promise<Order> {
   // If this throws an error, the workflow will move to the failed state
+  throw new Error("This will cause transition to failed state");
 }
 ```
 
@@ -333,8 +334,9 @@ You can disable this behavior by setting failOnError: false:
   to: OrderStatus.Processing, 
   failOnError: false 
 })
-onStatusChanged(params: { entity: Order; payload: any }) {
+onStatusChanged(params: { entity: Order; payload: any }): Promise<Order> {
   // If this throws an error, the workflow will continue to the next state
+  throw new Error("This error will be logged but won't affect the workflow");
 }
 ```
 
@@ -359,44 +361,44 @@ NestJS Workflow now supports integration with Apache Kafka, allowing your workfl
 
 ### Setting Up Kafka Integration
 
-To configure your workflow to listen to Kafka events, you need to add a `Kafka` property to your workflow definition:
+To configure your workflow to listen to Kafka events, you need to add a `kafka` property to your workflow definition:
 
 ```typescript
-const orderWorkflowDefinition = (entity: Order): WorkflowDefinition<Order, any, OrderEvent, OrderStatus> => {
-  return {
-    // ... other workflow properties
-    FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
-    IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
-    Transitions: [
-      // Your transitions here
-    ],
-    FailedState: OrderStatus.Failed,
-    
-    // Kafka configuration
-    Kafka: {
-      brokers: 'localhost:9092',
-      events: [
-        { topic: 'orders.submitted', event: OrderEvent.Submit },
-        { topic: 'orders.completed', event: OrderEvent.Complete },
-        { topic: 'orders.failed', event: OrderEvent.Fail }
-      ]
+const orderWorkflowDefinition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
+  // ... other workflow properties
+  states: {
+    finals: [OrderStatus.Completed, OrderStatus.Failed],
+    idles: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+    failed: OrderStatus.Failed,
+  },
+  transitions: [
+    // Your transitions here
+  ],
+  
+  // Kafka configuration
+  kafka: {
+    brokers: 'localhost:9092',
+    events: [
+      { topic: 'orders.submitted', event: OrderEvent.Submit },
+      { topic: 'orders.completed', event: OrderEvent.Complete },
+      { topic: 'orders.failed', event: OrderEvent.Fail }
+    ]
+  },
+  
+  entity: {
+    // Entity configuration
+    new: () => new Order(),
+    update: async (entity: Order, status: OrderStatus) => {
+      entity.status = status;
+      return entity;
     },
-    
-    Entity: {
-      // Entity configuration
-      new: () => new Order(),
-      update: async (entity: Order, status: OrderStatus) => {
-        entity.status = status;
-        return entity;
-      },
-      load: async (urn: string) => {
-        // Load entity from storage
-        return entity;
-      },
-      status: (entity: Order) => entity.status,
-      urn: (entity: Order) => entity.urn
-    }
-  };
+    load: async (urn: string) => {
+      // Load entity from storage
+      return new Order();
+    },
+    status: (entity: Order) => entity.status,
+    urn: (entity: Order) => entity.id
+  }
 };
 ```
 
@@ -409,12 +411,12 @@ When you configure Kafka integration:
 3. When a message arrives on a subscribed topic, the workflow engine will:
    - Map the topic to the corresponding workflow event
    - Extract the entity URN from the message
-   - Load the entity using your defined `Entity.load` function
+   - Load the entity using your defined `entity.load` function
    - Emit the mapped workflow event with the Kafka message as payload
 
 ### Complete Example with Kafka Integration
 
-```typescript
+````typescript
 import { Injectable, Module } from '@nestjs/common';
 import { WorkflowModule, WorkflowDefinition, WorkflowService } from '@jescrich/nestjs-workflow';
 
@@ -434,7 +436,7 @@ export enum OrderStatus {
 }
 
 export class Order {
-  urn: string;
+  id: string;
   name: string;
   price: number;
   items: string[];
@@ -442,57 +444,57 @@ export class Order {
 }
 
 // Create workflow definition with Kafka integration
-const orderWorkflowDefinition = (entity: Order): WorkflowDefinition<Order, any, OrderEvent, OrderStatus> => {
-  return {
-    FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
-    IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
-    Transitions: [
-      {
-        from: OrderStatus.Pending,
-        to: OrderStatus.Processing,
-        event: OrderEvent.Submit,
-        conditions: [(entity: Order, payload: any) => entity.price > 10],
-      },
-      {
-        from: OrderStatus.Processing,
-        to: OrderStatus.Completed,
-        event: OrderEvent.Complete,
-      },
-      {
-        from: OrderStatus.Processing,
-        to: OrderStatus.Failed,
-        event: OrderEvent.Fail,
-      },
-    ],
-    FailedState: OrderStatus.Failed,
-    
-    // Kafka configuration
-    Kafka: {
-      brokers: 'localhost:9092',
-      events: [
-        { topic: 'orders.submitted', event: OrderEvent.Submit },
-        { topic: 'orders.completed', event: OrderEvent.Complete },
-        { topic: 'orders.failed', event: OrderEvent.Fail }
-      ]
+const orderWorkflowDefinition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
+  states: {
+    finals: [OrderStatus.Completed, OrderStatus.Failed],
+    idles: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+    failed: OrderStatus.Failed,
+  },
+  transitions: [
+    {
+      from: OrderStatus.Pending,
+      to: OrderStatus.Processing,
+      event: OrderEvent.Submit,
+      conditions: [(entity: Order, payload: any) => entity.price > 10],
     },
-    
-    Entity: {
-      new: () => new Order(),
-      update: async (entity: Order, status: OrderStatus) => {
-        entity.status = status;
-        return entity;
-      },
-      load: async (urn: string) => {
-        // In a real application, load from database
-        const order = new Order();
-        order.urn = urn;
-        order.status = OrderStatus.Pending;
-        return order;
-      },
-      status: (entity: Order) => entity.status,
-      urn: (entity: Order) => entity.urn
-    }
-  };
+    {
+      from: OrderStatus.Processing,
+      to: OrderStatus.Completed,
+      event: OrderEvent.Complete,
+    },
+    {
+      from: OrderStatus.Processing,
+      to: OrderStatus.Failed,
+      event: OrderEvent.Fail,
+    },
+  ],
+  
+  // Kafka configuration
+  kafka: {
+    brokers: 'localhost:9092',
+    events: [
+      { topic: 'orders.submitted', event: OrderEvent.Submit },
+      { topic: 'orders.completed', event: OrderEvent.Complete },
+      { topic: 'orders.failed', event: OrderEvent.Fail }
+    ]
+  },
+  
+  entity: {
+    new: () => new Order(),
+    update: async (entity: Order, status: OrderStatus) => {
+      entity.status = status;
+      return entity;
+    },
+    load: async (urn: string) => {
+      // In a real application, load from database
+      const order = new Order();
+      order.id = urn;
+      order.status = OrderStatus.Pending;
+      return order;
+    },
+    status: (entity: Order) => entity.status,
+    urn: (entity: Order) => entity.id
+  }
 };
 
 @Module({
@@ -504,7 +506,8 @@ const orderWorkflowDefinition = (entity: Order): WorkflowDefinition<Order, any, 
   ],
 })
 export class AppModule {}
-```
+
+````
 
 ### Message Format
 
@@ -512,7 +515,7 @@ The Kafka messages should include the entity URN so that the workflow engine can
 
 ```json
 {
-  "urn": "urn:order:123",
+  "urn": "order-123",
   "price": 150,
   "items": ["Item 1", "Item 2"]
 }
@@ -541,8 +544,8 @@ export class OrderEntityService extends EntityService<Order, OrderStatus> {
   }
 
   // Create a new entity instance
-  new(): Order {
-    return new Order();
+  new(): Promise<Order> {
+    return Promise.resolve(new Order());
   }
 
   // Update entity status
@@ -567,7 +570,7 @@ export class OrderEntityService extends EntityService<Order, OrderStatus> {
 
   // Get entity URN
   urn(entity: Order): string {
-    return entity.urn;
+    return entity.id;
   }
 }
 ```
@@ -601,16 +604,18 @@ import { Module } from '@nestjs/common';
 import { WorkflowModule } from '@jescrich/nestjs-workflow';
 import { OrderEntityService } from './order-entity.service';
 
-const orderWorkflowDefinition = {
-  FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
-  IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
-  Transitions: [
+const orderWorkflowDefinition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
+  states: {
+    finals: [OrderStatus.Completed, OrderStatus.Failed],
+    idles: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+    failed: OrderStatus.Failed,
+  },
+  transitions: [
     // Your transitions here
   ],
-  FailedState: OrderStatus.Failed,
   
   // Reference your EntityService class instead of inline functions
-  Entity: OrderEntityService,
+  entity: OrderEntityService,
 };
 
 @Module({
@@ -638,15 +643,17 @@ export class OrderService {
     private readonly orderEntityService: OrderEntityService
   ) {
     const workflowDefinition = {
-      FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
-      IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
-      Transitions: [
+      states: {
+        finals: [OrderStatus.Completed, OrderStatus.Failed],
+        idles: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+        failed: OrderStatus.Failed,
+      },
+      transitions: [
         // Your transitions here
       ],
-      FailedState: OrderStatus.Failed,
       
-      // You can still include Entity here, but it will be overridden by the injected service
-      Entity: {
+      // You can still include entity here, but it will be overridden by the injected service
+      entity: {
         new: () => new Order(),
         // other methods...
       }
@@ -677,3 +684,4 @@ This approach is particularly useful for complex applications where entities are
 
 ## Advanced Usage
 For more advanced usage, including custom actions, conditions, and event handling, please check the documentation.
+```

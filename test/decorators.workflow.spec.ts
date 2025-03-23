@@ -89,8 +89,7 @@ export class FailingStatusOrderActions {
   @OnStatusChanged({ from: OrderStatus.Pending, to: OrderStatus.Processing })
   onStatusChanged(params: { entity: Order; payload: any }) {
     const { entity, payload } = params;
-    throw new Error("must be fail")
-    return Promise.resolve(entity);
+    throw new Error("must be fail");
   }
 }
 
@@ -100,8 +99,7 @@ export class FailingButNotStatusOrderActions {
   @OnStatusChanged({ from: OrderStatus.Pending, to: OrderStatus.Processing, failOnError: false })
   onStatusChanged(params: { entity: Order; payload: any }) {
     const { entity, payload } = params;
-    throw new Error("must be fail")
-    return Promise.resolve(entity);
+    throw new Error("must be fail");
   }
 }
 
@@ -122,18 +120,21 @@ export class InvalidOrderActions {
 
 const simpleDefinition = (entity: Order) => {
   const definition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
-    Actions: [OrderActions],
-    FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
-    IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
-    Transitions: [
+    actions: [OrderActions],
+    states: {
+      finals: [OrderStatus.Completed, OrderStatus.Failed],
+      idles: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+      failed: OrderStatus.Failed,
+    },
+    transitions: [
       {
         from: OrderStatus.Pending,
         to: OrderStatus.Processing,
         event: OrderEvent.Submit,
       },
     ],
-    FailedState: OrderStatus.Failed,
-    Entity: {
+
+    entity: {
       new: () => new Order(),
       update: async (entity: Order, status: OrderStatus) => {
         entity.status = status;
@@ -215,7 +216,7 @@ describe('Simple Order Workflow', () => {
 
     const definition = simpleDefinition(order);
 
-    definition.Actions = [InvalidOrderActions];
+    definition.actions = [InvalidOrderActions];
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [
@@ -246,7 +247,7 @@ describe('Simple Order Workflow', () => {
 
     const definition = simpleDefinition(order);
 
-    definition.Actions = [MultipleHandlersOrderActions];
+    definition.actions = [MultipleHandlersOrderActions];
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [
@@ -277,7 +278,7 @@ describe('Simple Order Workflow', () => {
 
     const definition = simpleDefinition(order);
 
-    definition.Actions = [StatusOrderActions];
+    definition.actions = [StatusOrderActions];
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [
@@ -307,7 +308,7 @@ describe('Simple Order Workflow', () => {
 
     const definition = simpleDefinition(order);
 
-    definition.Actions = [FailingStatusOrderActions];
+    definition.actions = [FailingStatusOrderActions];
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [
@@ -336,7 +337,7 @@ describe('Simple Order Workflow', () => {
 
     const definition = simpleDefinition(order);
 
-    definition.Actions = [FailingButNotStatusOrderActions];
+    definition.actions = [FailingButNotStatusOrderActions];
 
     const module: TestingModule = await Test.createTestingModule({
       imports: [

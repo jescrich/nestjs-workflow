@@ -30,36 +30,18 @@ export class Order {
 describe('Workflow Definition Tests', () => {
   it('should able to define it', async () => {
     const definition: WorkflowDefinition<Order, String, OrderEvent, OrderStatus> = {
-      // Events: [
-      //   OrderEvent.Create,
-      //   OrderEvent.Submit,
-      //   OrderEvent.Pending,
-      //   OrderEvent.Process,
-      //   OrderEvent.Complete,
-      //   OrderEvent.Fail,
-      //   OrderEvent.Cancel,
-      //   OrderEvent.RequireAction,
-      //   OrderEvent.Error,
-      // ],
-      // States: [
-      //   OrderStatus.Pending,
-      //   OrderStatus.Processing,
-      //   OrderStatus.Completed,
-      //   OrderStatus.Failed,
-      //   OrderStatus.Canceled,
-      //   OrderStatus.Error,
-      //   OrderStatus.InputRequired,
-      // ],
-      FinalStates: [OrderStatus.Completed, OrderStatus.Failed, OrderStatus.Canceled],
-      IdleStates: [
-        OrderStatus.Pending,
-        OrderStatus.Processing,
-        OrderStatus.Completed,
-        OrderStatus.Failed,
-        OrderStatus.Canceled,
-        OrderStatus.Error,
-      ],
-      Transitions: [
+      states: {
+        finals: [OrderStatus.Completed, OrderStatus.Failed, OrderStatus.Canceled],
+        idles: [
+          OrderStatus.Pending,
+          OrderStatus.Processing,
+          OrderStatus.Completed,
+          OrderStatus.Failed,
+          OrderStatus.Canceled,
+          OrderStatus.Error,],
+        failed: OrderStatus.Failed,
+      },
+      transitions: [
         {
           from: OrderStatus.Pending,
           to: OrderStatus.Processing,
@@ -91,8 +73,8 @@ describe('Workflow Definition Tests', () => {
           event: OrderEvent.Cancel,
         },
       ],
-      FailedState: OrderStatus.Failed,
-      Entity: {
+
+      entity: {
         new: () => new Order(),
         update: async (entity: Order, status: OrderStatus) => {
           entity.status = status;
@@ -108,21 +90,24 @@ describe('Workflow Definition Tests', () => {
       },
     };
 
-   
+
   });
 
   it('should able to define with actions and conditions', async () => {
     const definition: WorkflowDefinition<Order, String, OrderEvent, OrderStatus> = {
-      FinalStates: [OrderStatus.Completed, OrderStatus.Failed, OrderStatus.Canceled],
-      IdleStates: [
-        OrderStatus.Pending,
-        OrderStatus.Processing,
-        OrderStatus.Completed,
-        OrderStatus.Failed,
-        OrderStatus.Canceled,
-        OrderStatus.Error,
-      ],
-      Transitions: [
+      states: {
+        finals: [OrderStatus.Completed, OrderStatus.Failed, OrderStatus.Canceled],
+        idles: [
+          OrderStatus.Pending,
+          OrderStatus.Processing,
+          OrderStatus.Completed,
+          OrderStatus.Failed,
+          OrderStatus.Canceled,
+          OrderStatus.Error,
+        ],
+        failed: OrderStatus.Failed,
+      },
+      transitions: [
         {
           from: OrderStatus.Pending,
           to: OrderStatus.Processing,
@@ -146,8 +131,7 @@ describe('Workflow Definition Tests', () => {
           event: OrderEvent.Fail,
         },
       ],
-      FailedState: OrderStatus.Failed,
-      Entity: {
+      entity: {
         new: () => new Order(),
         update: async (entity: Order, status: OrderStatus) => {
           entity.status = status;
@@ -166,16 +150,19 @@ describe('Workflow Definition Tests', () => {
 
   it('should able to define with just enums', async () => {
     const definition: WorkflowDefinition<Order, String, OrderEvent, OrderStatus> = {
-      FinalStates: [OrderStatus.Completed, OrderStatus.Failed, OrderStatus.Canceled],
-      IdleStates: [
-        OrderStatus.Pending,
-        OrderStatus.Processing,
-        OrderStatus.Completed,
-        OrderStatus.Failed,
-        OrderStatus.Canceled,
-        OrderStatus.Error,
-      ],
-      Transitions: [
+      states: {
+        finals: [OrderStatus.Completed, OrderStatus.Failed, OrderStatus.Canceled],
+        idles: [
+          OrderStatus.Pending,
+          OrderStatus.Processing,
+          OrderStatus.Completed,
+          OrderStatus.Failed,
+          OrderStatus.Canceled,
+          OrderStatus.Error,
+        ],
+        failed: OrderStatus.Failed,
+      },
+      transitions: [
         {
           from: OrderStatus.Pending,
           to: OrderStatus.Processing,
@@ -199,8 +186,7 @@ describe('Workflow Definition Tests', () => {
           event: OrderEvent.Fail,
         },
       ],
-      FailedState: OrderStatus.Failed,
-      Entity: {
+      entity: {
         new: () => new Order(),
         update: async (entity: Order, status: OrderStatus) => {
           entity.status = status;

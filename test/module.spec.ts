@@ -2,7 +2,7 @@ import { Inject, Injectable, Module } from '@nestjs/common';
 import { Test, TestingModule } from '@nestjs/testing';
 import { WorkflowDefinition } from '@this/workflow/definition';
 import { WorkflowModule } from '@this/workflow/module';
-import WorkflowService, { Workflow } from '@this/workflow/service';
+import { Workflow, WorkflowService } from '@this/workflow/service';
 
 export enum OrderEvent {
   Create = 'order.create',
@@ -31,9 +31,12 @@ export class Order {
 
 const simpleDefinition = (entity: Order) => {
   const definition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
-    FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
-    IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
-    Transitions: [
+    states: {
+      finals: [OrderStatus.Completed, OrderStatus.Failed],
+      idles: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+      failed: OrderStatus.Failed,
+    },
+    transitions: [
       {
         from: OrderStatus.Pending,
         to: OrderStatus.Processing,
@@ -63,8 +66,7 @@ const simpleDefinition = (entity: Order) => {
         event: OrderEvent.Fail,
       },
     ],
-    FailedState: OrderStatus.Failed,
-    Entity: {
+    entity: {
       new: () => new Order(),
       update: async (entity: Order, status: OrderStatus) => {
         entity.status = status;
@@ -83,8 +85,7 @@ const simpleDefinition = (entity: Order) => {
 };
 
 describe('WorkflowModule', () => {
-  //   let cacheService: CacheService;
-
+  
   beforeEach(async () => {});
 
   it('must be able to register a workflow then resolve it', async () => {

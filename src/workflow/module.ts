@@ -1,6 +1,6 @@
 import { DynamicModule, ForwardReference, Module, Provider, Type } from '@nestjs/common';
 import { WorkflowDefinition } from './definition';
-import WorkflowService from './service';
+import { WorkflowService } from './service';
 import { ModuleRef } from '@nestjs/core';
 import { KafkaModule } from '@this/kafka/module';
 import { EntityService } from './entity.service';
@@ -40,19 +40,19 @@ export class WorkflowModule {
       );
     }
 
-    if (params.definition.Entity === undefined) {
+    if (params.definition.entity === undefined) {
       throw new Error('Workflow definition must have an Entity defined');
     }
 
     const isEntityServiceAClass =
-      typeof params.definition.Entity === 'function' && params.definition.Entity.prototype !== undefined;
+      typeof params.definition.entity === 'function' && params.definition.entity.prototype !== undefined;
 
     // Check if it's a provider (could be a class or a factory provider)
     const isEntityServiceAProvider =
       isEntityServiceAClass ||
-      (typeof params.definition.Entity === 'object' &&
-        'provide' in params.definition.Entity &&
-        'useClass' in params.definition.Entity);
+      (typeof params.definition.entity === 'object' &&
+        'provide' in params.definition.entity &&
+        'useClass' in params.definition.entity);
 
     // if (!isEntityServiceAClass  && !isEntityServiceAProvider) {
     //   throw new Error('Entity must be a Type, Provider, or function');

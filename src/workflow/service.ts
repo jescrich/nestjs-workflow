@@ -41,7 +41,7 @@ export interface Workflow<T, E> {
  * @typeParam E - The type of events that can trigger transitions
  * @typeParam S - The type of states the entity can be in
  */
-export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit {
+export class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit {
   @Inject()
   private readonly kafkaClient: KafkaClient;
 
@@ -100,16 +100,16 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
     try {
       this.logger.log(`Event: ${event}`, urn);
 
-      let entity: T = await this.loadEntity(urn);
+      let entity: T | null = await this.loadEntity(urn);
 
-      if (!entity) {
+      if (!entity || entity === null) {
         this.logger.error(`Element not found`, urn);
         throw new BadRequestException(`Entity not found`, urn);
       }
 
       let entityCurrentState = this.getEntityStatus(entity);
 
-      if (this.definition.FinalStates.includes(entityCurrentState)) {
+      if (this.definition.states.finals.includes(entityCurrentState)) {
         this.logger.warn(`Entity: ${urn} is in a final status. Accepting transitions due to a retry mechanism.`, urn);
       }
 
@@ -118,7 +118,7 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
       let message = '';
 
       do {
-        transitionEvent = this.definition.Transitions.find((transition) => {
+        transitionEvent = this.definition.transitions.find((transition) => {
           const events = Array.isArray(transition.event) ? transition.event : [transition.event];
           const states = Array.isArray(transition.from) ? transition.from : [transition.from];
           return currentEvent && events.includes(currentEvent) && states.includes(entityCurrentState);
@@ -132,7 +132,7 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
 
         const nextStatus = transitionEvent.to;
 
-        const possibleTransitions = this.definition.Transitions.filter(
+        const possibleTransitions = this.definition.transitions.filter(
           (t) =>
             (Array.isArray(t.from) ? t.from.includes(entityCurrentState) : t.from === entityCurrentState) &&
             t.to === nextStatus,
@@ -147,11 +147,10 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
             !t.conditions ||
             (t.conditions &&
               t.conditions.every((condition) => {
-                const result = condition(entity, payload);
+                const result = condition(entity!, payload);
                 this.logger.log(`Condition ${condition.name || 'anonymous'} result: ${result}`, urn);
                 return result;
-              }))
-          ) {
+              }))) {
             transition = t;
             break;
           } else {
@@ -164,9 +163,9 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
             `There's no valid transition from ${entityCurrentState} to ${nextStatus} or the condition is not met.`,
           );
 
-          if (this.definition.Fallback) {
+          if (this.definition.fallback) {
             this.logger.log(`Falling back to the default transition`, urn);
-            entity = await this.definition.Fallback(entity, currentEvent, payload);
+            entity = await this.definition.fallback(entity, currentEvent, payload);
           }
 
           return entity;
@@ -213,7 +212,7 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
 
         if (failed) {
           this.logger.log(`Transition failed. Setting status to failed. ${message}`, urn);
-          await this.updateEntityStatus(entity, this.definition.FailedState);
+          await this.updateEntityStatus(entity, this.definition.states.failed);
           this.logger.log(`Element transitioned to failed status. ${message}`, urn);
           break;
         }
@@ -244,7 +243,7 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
 
         if (failed) {
           this.logger.log(`Transition has succeded by a post on status change event has failed. ${message}`, urn);
-          await this.updateEntityStatus(entity, this.definition.FailedState);
+          await this.updateEntityStatus(entity, this.definition.states.failed);
           this.logger.log(`Element transitioned to failed status. ${message}`, urn);
           break;
         }
@@ -252,6 +251,11 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
         if (this.isInIdleStatus(entity)) {
           this.logger.log(`Element: ${urn} is idle in ${nextStatus} status. Waiting for external event...`);
           break; // Break the loop if the status is idle and waiting for an external event
+        }
+
+        if (this.isInFailedStatus(entity)) {
+          this.logger.log(`Element: ${urn} is in a final state. Workflow completed.`);
+          break;
         }
 
         currentEvent = this.nextEvent(entity);
@@ -299,17 +303,17 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
   }
 
   private nextEvent(entity: T): E | null {
-    const status =this.getEntityStatus(entity);
-    const nextTransitions = this.definition.Transitions.filter(
+    const status = this.getEntityStatus(entity);
+    const nextTransitions = this.definition.transitions.filter(
       (transition) =>
         (Array.isArray(transition.from) ? transition.from.includes(status) : transition.from === status) &&
-        transition.to !== this.definition.FailedState,
+        transition.to !== this.definition.states.failed,
     );
     if (nextTransitions && nextTransitions.length > 1) {
       for (const transition of nextTransitions) {
-        const transitionEvent = this.definition.Transitions.find((t) => t.event === transition.event);
+        const transitionEvent = this.definition.transitions.find((t) => t.event === transition.event);
         if (transitionEvent) {
-          const transitionVector = this.definition.Transitions.find((t) => t.to === transitionEvent.to);
+          const transitionVector = this.definition.transitions.find((t) => t.to === transitionEvent.to);
           if (transitionVector && transitionVector.conditions) {
             let allConditionsMet = true;
 
@@ -348,18 +352,27 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
   }
 
   private isInIdleStatus(entity: T): boolean {
-    const status =this.getEntityStatus(entity);
+    const status = this.getEntityStatus(entity);
     if (!status) {
       throw new Error('Entity status is not defined. Unable to determine if the entity is idle or not.');
     }
 
-    return this.definition.IdleStates.includes(status);
+    return this.definition.states.idles.includes(status);
+  }
+
+  private isInFailedStatus(entity: T): boolean {
+    const status = this.getEntityStatus(entity);
+    if (!status) {
+      throw new Error('Entity status is not defined. Unable to determine if the entity is idle or not.');
+    }
+
+    return status === this.definition.states.failed;
   }
 
   private configureActions() {
     try {
-      if (this.definition.Actions) {
-        for (const action of this.definition.Actions) {
+      if (this.definition.actions) {
+        for (const action of this.definition.actions) {
           const instance = this.moduleRef.get(action, { strict: false });
           if (instance && Reflect.getMetadata('isWorkflowAction', action)) {
             const methods = Object.getOwnPropertyNames(Object.getPrototypeOf(instance));
@@ -411,18 +424,18 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
 
       this.logger.log(`Initialized with ${this.actionsOnEvent.size} actions on events`);
       this.logger.log(`Initialized with ${this.actionsOnStatusChanged.size} actions on status changes`);
-      this.logger.log(`Initialized with ${this.definition.Transitions.length} transitions`);
-      this.logger.log(`Initialized with ${this.definition.Conditions?.length} conditions`);
+      this.logger.log(`Initialized with ${this.definition.transitions.length} transitions`);
+      this.logger.log(`Initialized with ${this.definition.conditions?.length} conditions`);
     } catch (e) {
       this.logger.error('Error trying to initialize workflow actions', e);
       throw e;
     }
   }
 
-  private configureConditions() {}
+  private configureConditions() { }
 
   private async initializeKakfaConsumers() {
-    if (!this.definition.Kafka) {
+    if (!this.definition.kafka) {
       this.logger.log('No Kafka events defined.');
       return;
     }
@@ -432,7 +445,7 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
       return;
     }
 
-    for (const kafkaDef of this.definition.Kafka?.events) {
+    for (const kafkaDef of this.definition.kafka?.events) {
       this.kafkaClient.consume(
         kafkaDef.topic,
         this.definition.name + 'consumer',
@@ -476,30 +489,32 @@ export default class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnMo
     };
   };
 
-  private async loadEntity(urn: string): Promise<T> {
+  private async loadEntity(urn: string): Promise<T | null> {
     if (this.entityService) {
-      return this.entityService.load(urn);
+      const e = this.entityService.load(urn);
+      return e ?? null;
     }
-    return (this.definition.Entity as { load: (urn: string) => Promise<T> }).load(urn);
+    return (this.definition.entity as { load: (urn: string) => Promise<T> }).load(urn);
   }
-  
+
   private getEntityStatus(entity: T): S {
     if (this.entityService) {
       return this.entityService.status(entity);
     }
-    return (this.definition.Entity as { status: (entity: T) => S }).status(entity);  }
-  
+    return (this.definition.entity as { status: (entity: T) => S }).status(entity);
+  }
+
   private async updateEntityStatus(entity: T, status: S): Promise<T> {
     if (this.entityService) {
       return this.entityService.update(entity, status);
     }
-    return (this.definition.Entity as { update: (entity: T, status: S) => Promise<T> }).update(entity, status);
+    return (this.definition.entity as { update: (entity: T, status: S) => Promise<T> }).update(entity, status);
   }
-  
+
   private getEntityUrn(entity: T): string {
     if (this.entityService) {
       return this.entityService.urn(entity);
     }
-    return (this.definition.Entity as { urn: (entity: T) => string }).urn(entity);
-  }  
+    return (this.definition.entity as { urn: (entity: T) => string }).urn(entity);
+  }
 }

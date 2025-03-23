@@ -37,17 +37,20 @@ export interface KafkaEvent<Event> {
  */
 export interface WorkflowDefinition<T, P, Event, State> {
   name?: string;
-  FinalStates: State[];
-  IdleStates: State[];
-  FailedState: State;
-  Transitions: TransitionEvent<T, P, Event, State>[];
-  Actions?: Type<any>[];
-  Conditions?: Type<any>[];
-  Kafka?: {
+  states: {
+    finals: State[];
+    idles: State[];
+    failed: State;
+  };
+  options?: {};
+  transitions: TransitionEvent<T, P, Event, State>[];
+  actions?: Type<any>[];
+  conditions?: Type<any>[];
+  kafka?: {
     brokers: string;
     events: KafkaEvent<Event>[];
   };
-  Entity:
+  entity:
     | Provider<EntityService<T, State>>
     | Type<EntityService<T, State>>
     | {
@@ -57,5 +60,5 @@ export interface WorkflowDefinition<T, P, Event, State> {
         status: (entity: T) => State;
         urn: (entity: T) => string;
       };
-  Fallback?: (entity: T, event: Event, payload?: P | T | object | string) => Promise<T>;
+  fallback?: (entity: T, event: Event, payload?: P | T | object | string) => Promise<T>;
 }

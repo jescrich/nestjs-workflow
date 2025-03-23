@@ -1,6 +1,6 @@
 import { ModuleRef } from '@nestjs/core';
 import { WorkflowDefinition } from '@this/workflow/definition'; // Adjust path if needed
-import WorkflowService from '@this/workflow/service';
+import { WorkflowService } from '@this/workflow/service';
 import { DeepMocked, createMock } from '@golevelup/ts-jest';
 
 export enum OrderEvent {
@@ -31,9 +31,12 @@ export class Order {
 const simpleDefinition = (entity: Order) => {
   const definition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
     name: "OrderWorkflow",
-    FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
-    IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
-    Transitions: [
+    states: {
+      finals: [OrderStatus.Completed, OrderStatus.Failed],
+      idles: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+      failed: OrderStatus.Failed,
+    },
+    transitions: [
       {
         from: OrderStatus.Pending,
         to: OrderStatus.Processing,
@@ -63,8 +66,7 @@ const simpleDefinition = (entity: Order) => {
         event: OrderEvent.Fail,
       },
     ],
-    FailedState: OrderStatus.Failed,
-    Entity: {
+    entity: {
       new: () => new Order(),
       update: async (entity: Order, status: OrderStatus) => {
         entity.status = status;

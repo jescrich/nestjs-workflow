@@ -48,7 +48,7 @@ class OrderEntityService implements EntityService<Order, OrderStatus> {
   constructor(
     private moduleRef: ModuleRef,
     private readonly repository: OrdersRepository,
-  ) {}
+  ) { }
 
   new(): Promise<Order> {
     return Promise.resolve(new Order());
@@ -69,14 +69,17 @@ class OrderEntityService implements EntityService<Order, OrderStatus> {
 }
 
 @Injectable()
-export class OrderActions {}
+export class OrderActions { }
 
 const TestWorkflowDefinition = (entity: Order) => {
   const definition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
     name: 'OrderWorkflow',
-    FinalStates: [OrderStatus.Completed, OrderStatus.Failed],
-    IdleStates: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
-    Transitions: [
+    states: {
+      finals: [OrderStatus.Completed, OrderStatus.Failed],
+      idles: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+      failed: OrderStatus.Failed,
+    },
+    transitions: [
       {
         from: OrderStatus.Pending,
         to: OrderStatus.Processing,
@@ -106,8 +109,8 @@ const TestWorkflowDefinition = (entity: Order) => {
         event: OrderEvent.Fail,
       },
     ],
-    FailedState: OrderStatus.Failed,
-    Entity: OrderEntityService,
+
+    entity: OrderEntityService,
   };
   return definition;
 };
@@ -129,7 +132,7 @@ const TestWorkflowDefinition = (entity: Order) => {
   providers: [OrderActions, OrdersRepository],
   exports: [OrdersRepository],
 })
-export class CustomModel {}
+export class CustomModel { }
 
 describe('Entity Service dependant Order Workflow', () => {
   beforeEach(async () => {

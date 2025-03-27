@@ -1,7 +1,7 @@
 import { Global, Injectable, Module } from '@nestjs/common';
 import { ModuleRef } from '@nestjs/core';
 import { Test, TestingModule } from '@nestjs/testing';
-import { WorkflowModule } from '@this/index';
+import { WorkflowModule, WorkflowService } from '@this/index';
 import { WorkflowAction } from '@this/workflow/action.class.decorator';
 import { OnEvent } from '@this/workflow/action.event.method.decorator';
 import { OnStatusChanged } from '@this/workflow/action.status.method.decorator';
@@ -150,7 +150,8 @@ describe('Entity Service dependant Order Workflow', () => {
       imports: [CustomModel],
     }).compile();
 
-    const orderWorkflow = module.get('fooWorkflow');
+    const orderWorkflow = module.get(WorkflowService<Order, any, OrderEvent, OrderStatus>);
+    expect(orderWorkflow).toBeDefined();
     await orderWorkflow.onModuleInit();
     const result = await orderWorkflow.emit({ urn: order.urn, event: OrderEvent.Submit });
     expect(result.status).toBe(OrderStatus.Processing);

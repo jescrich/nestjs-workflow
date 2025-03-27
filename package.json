@@ -37,7 +37,6 @@
     "rxjs": "^7.8.1"
   },
   "dependencies": {
-    "@golevelup/ts-jest": "^0.6.2",
     "@nestjs/common": "^11.0.1",
     "@nestjs/core": "^11.0.1",
     "kafkajs": "^2.2.4",
@@ -45,6 +44,7 @@
     "rxjs": "^7.8.2"
   },
   "devDependencies": {
+    "@golevelup/ts-jest": "^0.6.2",
     "@nestjs/testing": "^11.0.11",
     "@types/chai": "^5.0.1",
     "@types/jest": "^29.5.14",

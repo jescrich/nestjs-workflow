@@ -100,7 +100,8 @@ describe('WorkflowModule', () => {
       ],
     }).compile();
 
-    const orderWorkflow = module.get("simpleworkflow");
+    const orderWorkflow = module.get(WorkflowService<Order, any, OrderEvent, OrderStatus>);
+    expect(orderWorkflow).toBeDefined();
   });
 
   it('must be able to register a workflow then use it', async () => {

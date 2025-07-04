@@ -42,8 +42,7 @@ export interface Workflow<T, E> {
  * @typeParam S - The type of states the entity can be in
  */
 export class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit {
-  @Inject()
-  private readonly kafkaClient: KafkaClient;
+  private kafkaClient?: KafkaClient;
 
   private readonly logger = new Logger(WorkflowService.name);
   private readonly actionsOnStatusChanged: Map<
@@ -60,19 +59,32 @@ export class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit
 
   private entityService: EntityService<T, S> | null = null;
 
-  @Inject()
-  private readonly moduleRef: ModuleRef;
+  private readonly moduleRef?: ModuleRef;
 
   constructor(
     private readonly definition: WorkflowDefinition<T, P, E, S>,
-    
     @Optional() injectedEntityService?: EntityService<T, S>,
+    @Optional() injectedModuleRef?: ModuleRef,
   ) {
+    this.moduleRef = injectedModuleRef;
     this.logger.log(`Initializing workflow: ${this.definition.name}`, this.definition.name);
     this.entityService = injectedEntityService || null;
   }
 
   async onModuleInit() {
+    // Resolve entity service if not already injected
+    if (!this.entityService && typeof this.definition.entity === 'function' && this.moduleRef) {
+      try {
+        const entityServiceInstance = this.moduleRef.get(this.definition.entity, { strict: false });
+        if (entityServiceInstance) {
+          this.entityService = entityServiceInstance;
+          this.logger.log(`Resolved entity service: ${this.definition.entity.name}`, this.definition.name);
+        }
+      } catch (error) {
+        this.logger.warn(`Could not resolve entity service during initialization: ${error.message}`, this.definition.name);
+      }
+    }
+    
     this.configureActions();
 
     this.configureConditions();
@@ -153,7 +165,8 @@ export class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit
                 const result = condition(entity!, payload);
                 this.logger.log(`Condition ${condition.name || 'anonymous'} result: ${result}`, urn);
                 return result;
-              }))) {
+              }))
+          ) {
             transition = t;
             break;
           } else {
@@ -374,7 +387,7 @@ export class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit
 
   private configureActions() {
     try {
-      if (this.definition.actions) {
+      if (this.definition.actions && this.moduleRef) {
         for (const action of this.definition.actions) {
           const instance = this.moduleRef.get(action, { strict: false });
           if (instance && Reflect.getMetadata('isWorkflowAction', action)) {
@@ -425,17 +438,22 @@ export class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit
         }
       }
 
-      this.logger.log(`Initialized with ${this.actionsOnEvent.size} actions on events`);
-      this.logger.log(`Initialized with ${this.actionsOnStatusChanged.size} actions on status changes`);
-      this.logger.log(`Initialized with ${this.definition.transitions.length} transitions`);
-      this.logger.log(`Initialized with ${this.definition.conditions?.length} conditions`);
+      this.logger.log(`Initialized with ${this.actionsOnEvent.size} actions on events`, this.definition.name);
+      this.logger.log(
+        `Initialized with ${this.actionsOnStatusChanged.size} actions on status changes`,
+        this.definition.name,
+      );
+      this.logger.log(`Initialized with ${this.definition.transitions.length} transitions`, this.definition.name);
+      this.logger.log(`Initialized with ${this.definition.conditions?.length} conditions`, this.definition.name);
+
+      this.logger.log('moduleref instance ', this.moduleRef);
     } catch (e) {
       this.logger.error('Error trying to initialize workflow actions', e);
       throw e;
     }
   }
 
-  private configureConditions() { }
+  private configureConditions() {}
 
   private async initializeKakfaConsumers() {
     if (!this.definition.kafka) {
@@ -444,7 +462,7 @@ export class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit
     }
 
     if (!this.kafkaClient) {
-      this.logger.error('Kafka client not found, have you ever specified the Kafka module in the imports?');
+      this.logger.log('Kafka client not available, skipping Kafka consumer initialization.');
       return;
     }
 
@@ -494,30 +512,94 @@ export class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit
 
   private async loadEntity(urn: string): Promise<T | null> {
     if (this.entityService) {
-      const e = this.entityService.load(urn);
+      const e = await this.entityService.load(urn);
       return e ?? null;
     }
-    return (this.definition.entity as { load: (urn: string) => Promise<T> }).load(urn);
+    
+    // Check if entity is a class (EntityService) and resolve it using ModuleRef
+    if (typeof this.definition.entity === 'function' && this.moduleRef) {
+      try {
+        const entityServiceInstance = this.moduleRef.get(this.definition.entity, { strict: false });
+        if (entityServiceInstance) {
+          return await entityServiceInstance.load(urn);
+        }
+      } catch (error) {
+        this.logger.warn(`Could not resolve EntityService from ModuleRef: ${error.message}`);
+      }
+    }
+    
+    // Fallback to inline entity configuration
+    if (typeof this.definition.entity === 'object' && 'load' in this.definition.entity) {
+      return await (this.definition.entity as { load: (urn: string) => Promise<T> }).load(urn);
+    }
+    
+    throw new Error(`Unable to load entity: entity service not properly configured`);
   }
 
   private getEntityStatus(entity: T): S {
     if (this.entityService) {
       return this.entityService.status(entity);
     }
+    
+    // Check if entity is a class (EntityService) and resolve it using ModuleRef
+    if (typeof this.definition.entity === 'function' && this.moduleRef) {
+      try {
+        const entityServiceInstance = this.moduleRef.get(this.definition.entity, { strict: false });
+        if (entityServiceInstance) {
+          return entityServiceInstance.status(entity);
+        }
+      } catch (error) {
+        this.logger.warn(`Could not resolve EntityService from ModuleRef: ${error.message}`);
+      }
+    }
+    
+    // Fallback to inline entity configuration
     return (this.definition.entity as { status: (entity: T) => S }).status(entity);
   }
 
   private async updateEntityStatus(entity: T, status: S): Promise<T> {
     if (this.entityService) {
-      return this.entityService.update(entity, status);
+      return await this.entityService.update(entity, status);
     }
-    return (this.definition.entity as { update: (entity: T, status: S) => Promise<T> }).update(entity, status);
+    
+    // Check if entity is a class (EntityService) and resolve it using ModuleRef
+    if (typeof this.definition.entity === 'function' && this.moduleRef) {
+      try {
+        const entityServiceInstance = this.moduleRef.get(this.definition.entity, { strict: false });
+        if (entityServiceInstance) {
+          return await entityServiceInstance.update(entity, status);
+        }
+      } catch (error) {
+        this.logger.warn(`Could not resolve EntityService from ModuleRef: ${error.message}`);
+      }
+    }
+    
+    // Fallback to inline entity configuration
+    if (typeof this.definition.entity === 'object' && 'update' in this.definition.entity) {
+      return await (this.definition.entity as { update: (entity: T, status: S) => Promise<T> }).update(entity, status);
+    }
+    
+    throw new Error(`Unable to update entity status: entity service not properly configured`);
   }
 
   private getEntityUrn(entity: T): string {
     if (this.entityService) {
       return this.entityService.urn(entity);
     }
+    
+    // Check if entity is a class (EntityService) and resolve it using ModuleRef
+    if (typeof this.definition.entity === 'function' && this.moduleRef) {
+      try {
+        const entityServiceInstance = this.moduleRef.get(this.definition.entity, { strict: false });
+        if (entityServiceInstance) {
+          return entityServiceInstance.urn(entity);
+        }
+      } catch (error) {
+        this.logger.warn(`Could not resolve EntityService from ModuleRef: ${error.message}`);
+      }
+    }
+    
+    // Fallback to inline entity configuration
     return (this.definition.entity as { urn: (entity: T) => string }).urn(entity);
   }
 }

@@ -1,4 +1,4 @@
-import { DynamicModule, ForwardReference, Module, Provider, Type } from '@nestjs/common';
+import { DynamicModule, ForwardReference, Logger, Module, Provider, Type } from '@nestjs/common';
 import { WorkflowDefinition } from './definition';
 import { WorkflowService } from './service';
 import { ModuleRef } from '@nestjs/core';
@@ -44,66 +44,72 @@ export class WorkflowModule {
       throw new Error('Workflow definition must have an Entity defined');
     }
 
-    const isEntityServiceAClass =
-      typeof params.definition.entity === 'function' && params.definition.entity.prototype !== undefined;
-
-    // Check if it's a provider (could be a class or a factory provider)
-    const isEntityServiceAProvider =
-      isEntityServiceAClass ||
-      (typeof params.definition.entity === 'object' &&
-        'provide' in params.definition.entity &&
-        'useClass' in params.definition.entity);
+    const isEntityClass = typeof params.definition.entity === 'function';
+    
+    // If entity is a class, ensure it's provided in the module
+    if (isEntityClass && !providers.some(p => 
+      (typeof p === 'object' && 'provide' in p && p.provide === params.definition.entity) ||
+      (typeof p === 'object' && 'provide' in p && p.provide === EntityService)
+    )) {
+      const entityClass = params.definition.entity as Type<EntityService<T, State>>;
+      providers.push({
+        provide: entityClass,
+        useClass: entityClass,
+      });
+    }
 
     return {
       module: WorkflowModule,
       imports: [...(params.imports ?? [])],
       providers: [
-        // {
-        //   provide: ConsumerService,
-        //   useFactory: (kafkaClient: KafkaClient, consumerRef: ConsumerRefService, moduleRef: ModuleRef) => {
-        //     return new ConsumerService(params.name, kafkaClient, consumerRef, moduleRef);
-        //   },
-        //   inject: [KafkaClient, ConsumerRefService, ModuleRef],
-        // },
-
-        !isEntityServiceAProvider
-          ? {
-              provide: WorkflowService<T, P, Event, State>,
-              useFactory: (moduleRef: ModuleRef) => {
-                return new WorkflowService(params.definition);
-              },
-              inject: [],
-            }
-          : {
-              provide: WorkflowService<T, P, Event, State>,
-              useFactory: (entityService: EntityService<T, State>) => {
-                return new WorkflowService(params.definition, entityService);
-              },
-              inject: [EntityService<T, State>],
-            },
-        !isEntityServiceAProvider
-          ? {
-              provide: params.name,
-              useFactory: (moduleRef: ModuleRef) => {
-                return new WorkflowService(params.definition);
-              },
-              inject: [],
-            }
-          : {
-              provide: params.name,
-              useFactory: (entityService: EntityService<T, State>) => {
-                return new WorkflowService(params.definition, entityService);
-              },
-              inject: [EntityService<T, State>],
-            },
-        ...(params.providers ?? []),
-      ],
-      exports: [
-        WorkflowService<T, P, Event, State>,
+        // Register the named workflow service
         {
           provide: params.name,
-          useExisting: WorkflowService<T, P, Event, State>,
+          useFactory: (moduleRef: ModuleRef, kafkaClient?: KafkaClient, entityService?: EntityService<T, State>) => {
+            Logger.log('Creating workflow service', 'WorkflowModule');
+            const service = new WorkflowService(params.definition, entityService, moduleRef);
+            // Manually set kafkaClient if available since @Inject doesn't work with factory
+            if (kafkaClient) {
+              (service as any).kafkaClient = kafkaClient;
+            }
+            return service;
+          },
+          inject: [
+            ModuleRef, 
+            ...(params.kafka?.enabled ? [KafkaClient] : []),
+            ...(isEntityClass ? [{ token: EntityService, optional: true }] : [])
+          ],
         },
+        // Register the generic WorkflowService
+        {
+          provide: WorkflowService,
+          useFactory: (moduleRef: ModuleRef, kafkaClient?: KafkaClient, entityService?: EntityService<T, State>) => {
+            Logger.log('Creating generic workflow service', 'WorkflowModule');
+            const service = new WorkflowService(params.definition, entityService, moduleRef);
+            // Manually set kafkaClient if available since @Inject doesn't work with factory
+            if (kafkaClient) {
+              (service as any).kafkaClient = kafkaClient;
+            }
+            return service;
+          },
+          inject: [
+            ModuleRef, 
+            ...(params.kafka?.enabled ? [KafkaClient] : []),
+            ...(isEntityClass ? [{ token: EntityService, optional: true }] : [])
+          ],
+        },
+        // Add all providers including Kafka and custom providers
+        ...providers,
+      ],
+      exports: [
+        // Export the named workflow service
+        {
+          provide: params.name,
+          useExisting: WorkflowService,
+        },
+        // Export WorkflowService
+        WorkflowService,
+        // Export Kafka client if enabled
         ...(params.kafka?.enabled ? [KafkaClient] : []),
       ],
     };

@@ -225,6 +225,16 @@ const SubscriptionWorkflowDefinition: WorkflowDefinition<
     WorkflowModule.register({
       name: 'SubscriptionsWorkflow',
       definition: SubscriptionWorkflowDefinition,
+      providers: [
+        {
+          provide: SubscriptionsRepository,
+          useClass: SubscriptionsRepository,
+        },
+        {
+          provide: EntityService,
+          useExisting: SubscriptionsRepository,
+        },
+      ],
     }),
   ],
   providers: [StripeSubscriptionsActions, {
@@ -257,6 +267,9 @@ describe('Stripe Subscription Workflow', () => {
     workflowService = module.get('SubscriptionsWorkflow');
     subscriptionsActions = module.get(StripeSubscriptionsActions);
     repository = module.get(EntityService<Subscription, SubscriptionStatus>);
+    
+    // Initialize the workflow service
+    await workflowService.onModuleInit();
     
     // Clear repository before each test
     repository.clear();

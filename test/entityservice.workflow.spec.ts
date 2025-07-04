@@ -122,9 +122,14 @@ const TestWorkflowDefinition = (entity: Order) => {
       name: 'fooWorkflow',
       definition: TestWorkflowDefinition(order),
       providers: [
+        OrdersRepository,
         {
-          provide: EntityService<Order, OrderStatus>,
+          provide: OrderEntityService,
           useClass: OrderEntityService,
+        },
+        {
+          provide: EntityService,
+          useExisting: OrderEntityService,
         },
       ],
     }),

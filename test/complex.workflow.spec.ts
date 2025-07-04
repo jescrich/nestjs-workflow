@@ -116,7 +116,7 @@ describe('Complex Workflow Transitions', () => {
       },
     };
     
-    service = new WorkflowService(definition, moduleRef);
+    service = new WorkflowService(definition);
     await service.onModuleInit();
   });
 

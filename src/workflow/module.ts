@@ -77,7 +77,7 @@ export class WorkflowModule {
           inject: [
             ModuleRef, 
             ...(params.kafka?.enabled ? [KafkaClient] : []),
-            ...(isEntityClass ? [{ token: EntityService, optional: true }] : [])
+            ...(isEntityClass ? [{ token: params.definition.entity as Type<EntityService<T, State>>, optional: true }] : [])
           ],
         },
         // Register the generic WorkflowService
@@ -95,7 +95,7 @@ export class WorkflowModule {
           inject: [
             ModuleRef, 
             ...(params.kafka?.enabled ? [KafkaClient] : []),
-            ...(isEntityClass ? [{ token: EntityService, optional: true }] : [])
+            ...(isEntityClass ? [{ token: params.definition.entity as Type<EntityService<T, State>>, optional: true }] : [])
           ],
         },
         // Add all providers including Kafka and custom providers

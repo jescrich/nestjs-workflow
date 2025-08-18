@@ -3,6 +3,26 @@
 # NestJS Workflow & State Machine
 A flexible workflow engine built on top of NestJS framework, enabling developers to create, manage, and execute complex workflows in their Node.js applications.
 
+## 🎯 Live Examples & Demos
+
+Explore fully functional examples with **interactive visual demos** in our dedicated examples repository:
+
+### 👉 **[View Examples Repository](https://github.com/jescrich/nestjs-workflow-examples)**
+
+The repository includes three comprehensive real-world examples:
+
+1. **🚀 User Onboarding Workflow** - Multi-step verification, KYC/AML compliance, risk assessment
+2. **📦 Order Processing System** - Complete e-commerce lifecycle with payment retry logic
+3. **📊 Kafka-Driven Inventory** - Real-time event-driven inventory management with Kafka integration
+
+Each example features:
+- ✨ **Interactive Visual Mode** - See workflows in action with real-time state visualization
+- 🎮 **Interactive Controls** - Manually trigger transitions and explore different paths
+- 🤖 **Automated Scenarios** - Pre-built test cases demonstrating various workflow paths
+- 📝 **Full Source Code** - Production-ready implementations you can adapt
+
+**[➡️ Get Started with Examples](https://github.com/jescrich/nestjs-workflow-examples#-quick-start)**
+
 ## Table of Contents
 - [Features](#features)
 - [Stateless Architecture](#stateless-architecture)
@@ -73,6 +93,34 @@ yarn add @jescrich/nestjs-workflow
 ```
 
 ## Quick Start
+
+### 🎮 Try the Interactive Demos First!
+
+Before diving into code, experience workflows visually with our interactive demos:
+
+```bash
+# Quick demo setup
+git clone https://github.com/jescrich/nestjs-workflow-examples.git
+cd nestjs-workflow-examples/01-user-onboarding
+npm install && npm run demo
+```
+
+You'll see an interactive workflow visualization like this:
+```
+╔══════════════╗     ┌──────────────┐     ┌──────────────┐
+║  REGISTERED  ║ --> │EMAIL_VERIFIED│ --> │PROFILE_COMPLETE│
+╚══════════════╝     └──────────────┘     └──────────────┘
+      (current)            ↓                      ↓
+                    ┌──────────────┐     ┌──────────────┐
+                    │   SUSPENDED  │     │IDENTITY_VERIFIED│
+                    └──────────────┘     └──────────────┘
+                                               ↓
+                                         ╔══════════╗
+                                         ║  ACTIVE  ║
+                                         ╚══════════╝
+```
+
+**[🚀 Explore All Examples](https://github.com/jescrich/nestjs-workflow-examples)**
 
 ### Module Registration
 ```typescript
@@ -682,6 +730,57 @@ Using a dedicated EntityService provides several advantages:
 
 This approach is particularly useful for complex applications where entities are stored in databases and require sophisticated loading and persistence logic.
 
+## 📚 Examples & Learning Resources
+
+### Interactive Examples Repository
+The best way to learn is by exploring our **[comprehensive examples repository](https://github.com/jescrich/nestjs-workflow-examples)** which includes:
+
+#### 1. User Onboarding Workflow Example
+Demonstrates a real-world user registration and verification system:
+- Progressive profile completion with automatic transitions
+- Multi-factor authentication flows
+- Risk assessment integration
+- Compliance checks (KYC/AML)
+- States: `REGISTERED` → `EMAIL_VERIFIED` → `PROFILE_COMPLETE` → `IDENTITY_VERIFIED` → `ACTIVE`
+
+#### 2. E-Commerce Order Processing Example  
+Complete order lifecycle management system:
+- Payment processing with retry logic
+- Inventory reservation and management
+- Multi-state shipping workflows
+- Refund and return handling
+- States: `CREATED` → `PAYMENT_PENDING` → `PAID` → `PROCESSING` → `SHIPPED` → `DELIVERED`
+
+#### 3. Kafka-Driven Inventory Management
+Event-driven inventory system with Kafka integration:
+- Real-time stock level updates via Kafka events
+- Automatic reorder triggering
+- Quality control and quarantine workflows
+- Multi-warehouse support
+- Special states for `QUARANTINE`, `AUDITING`, `DAMAGED`, `EXPIRED`
+
+### Running the Examples
+
+```bash
+# Clone the examples repository
+git clone https://github.com/jescrich/nestjs-workflow-examples.git
+cd nestjs-workflow-examples
+
+# Install all examples
+npm run install:all
+
+# Run interactive demos with visual workflow diagrams
+npm run demo:user-onboarding    # User onboarding demo
+npm run demo:order-processing   # Order processing demo
+npm run demo:kafka-inventory    # Kafka inventory demo
+```
+
+The interactive demos feature:
+- **ASCII-art workflow visualization** showing current state and possible transitions
+- **Real-time state updates** as you interact with the workflow
+- **Menu-driven interface** to trigger events and explore different paths
+- **Automated scenarios** to demonstrate various workflow patterns
+
 ## Advanced Usage
-For more advanced usage, including custom actions, conditions, and event handling, please check the documentation.
+For more advanced usage, including custom actions, conditions, and event handling, please check the documentation and explore the examples repository.
 ```

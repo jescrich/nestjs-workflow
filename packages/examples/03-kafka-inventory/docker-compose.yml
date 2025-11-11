@@ -1,0 +1,76 @@
+services:
+  zookeeper:
+    image: confluentinc/cp-zookeeper:7.5.0
+    container_name: inventory-zookeeper
+    environment:
+      ZOOKEEPER_CLIENT_PORT: 2182  # Non-default port (default is 2181)
+      ZOOKEEPER_TICK_TIME: 2000
+    ports:
+      - "2182:2182"
+    networks:
+      - inventory-network
+
+  kafka:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: inventory-kafka
+    depends_on:
+      - zookeeper
+    ports:
+      - "9093:9093"  # Non-default port (default is 9092)
+      - "29093:29093"  # Internal listener
+    environment:
+      KAFKA_BROKER_ID: 1
+      KAFKA_ZOOKEEPER_CONNECT: zookeeper:2182
+      KAFKA_ADVERTISED_LISTENERS: PLAINTEXT://localhost:9093,PLAINTEXT_INTERNAL://kafka:29093
+      KAFKA_LISTENER_SECURITY_PROTOCOL_MAP: PLAINTEXT:PLAINTEXT,PLAINTEXT_INTERNAL:PLAINTEXT
+      KAFKA_INTER_BROKER_LISTENER_NAME: PLAINTEXT_INTERNAL
+      KAFKA_OFFSETS_TOPIC_REPLICATION_FACTOR: 1
+      KAFKA_TRANSACTION_STATE_LOG_MIN_ISR: 1
+      KAFKA_TRANSACTION_STATE_LOG_REPLICATION_FACTOR: 1
+      KAFKA_AUTO_CREATE_TOPICS_ENABLE: 'true'
+    networks:
+      - inventory-network
+
+  kafka-ui:
+    image: provectuslabs/kafka-ui:latest
+    container_name: inventory-kafka-ui
+    depends_on:
+      - kafka
+    ports:
+      - "8081:8080"  # Non-default port (mapped to 8081)
+    environment:
+      KAFKA_CLUSTERS_0_NAME: inventory-cluster
+      KAFKA_CLUSTERS_0_BOOTSTRAPSERVERS: kafka:29093
+      KAFKA_CLUSTERS_0_ZOOKEEPER: zookeeper:2182
+    networks:
+      - inventory-network
+
+  # Optional: Kafka topic initialization
+  kafka-init:
+    image: confluentinc/cp-kafka:7.5.0
+    container_name: inventory-kafka-init
+    depends_on:
+      - kafka
+    entrypoint: ["/bin/sh", "-c"]
+    command: |
+      "
+      echo 'Waiting for Kafka to be ready...'
+      sleep 10
+      
+      # Create topics for inventory workflow
+      kafka-topics --bootstrap-server kafka:29093 --create --if-not-exists --topic inventory.stock.received --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29093 --create --if-not-exists --topic inventory.stock.allocated --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29093 --create --if-not-exists --topic inventory.stock.released --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29093 --create --if-not-exists --topic inventory.stock.adjusted --partitions 3 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29093 --create --if-not-exists --topic inventory.audit.requested --partitions 1 --replication-factor 1
+      kafka-topics --bootstrap-server kafka:29093 --create --if-not-exists --topic inventory.reorder.triggered --partitions 1 --replication-factor 1
+      
+      echo 'Topics created successfully!'
+      kafka-topics --bootstrap-server kafka:29093 --list
+      "
+    networks:
+      - inventory-network
+
+networks:
+  inventory-network:
+    driver: bridge

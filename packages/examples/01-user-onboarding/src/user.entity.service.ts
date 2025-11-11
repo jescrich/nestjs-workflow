@@ -1,6 +1,7 @@
 import { Injectable, Logger } from '@nestjs/common';
 import { EntityService } from '@jescrich/nestjs-workflow';
 import { User, UserStatus } from './user.entity';
+import * as crypto from 'crypto';
 
 // Simulated database
 const userDatabase = new Map<string, User>();
@@ -11,7 +12,7 @@ export class UserEntityService extends EntityService<User, UserStatus> {
   
   async new(): Promise<User> {
     const user = new User();
-    user.id = `user_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    user.id = `user_${Date.now()}_${crypto.randomBytes(6).toString('base64url')}`;
     this.logger.log(`Created new user with ID: ${user.id}`);
     return user;
   }

@@ -9,23 +9,21 @@ A flexible workflow engine built on top of NestJS framework, enabling developers
 
 ## 🎯 Live Examples & Demos
 
-Explore fully functional examples with **interactive visual demos** in our dedicated examples repository:
+Explore fully functional examples with **interactive visual demos** included in this repository under the `examples/` directory.
 
-### 👉 **[View Examples Repository](https://github.com/jescrich/nestjs-workflow-examples)**
+The examples include comprehensive real-world implementations:
 
-The repository includes three comprehensive real-world examples:
-
-1. **🚀 User Onboarding Workflow** - Multi-step verification, KYC/AML compliance, risk assessment
-2. **📦 Order Processing System** - Complete e-commerce lifecycle with payment retry logic
-3. **📊 Kafka-Driven Inventory** - Real-time event-driven inventory management with Kafka integration
+1. **🚀 Basic Example** (`examples/00-basic-example`) - Simple task workflow to get started
+2. **👤 User Onboarding Workflow** (`examples/01-user-onboarding`) - Multi-step verification, KYC/AML compliance, risk assessment
+3. **📦 Order Processing System** (`examples/02-order-processing`) - Complete e-commerce lifecycle with payment retry logic
+4. **📊 Kafka-Driven Inventory** (`examples/03-kafka-inventory`) - Real-time event-driven inventory management with Kafka integration
+5. **🔄 BullMQ Task Processing** (`examples/04-bullmq-task`) - Redis-based job queue workflow with BullMQ integration
 
 Each example features:
 - ✨ **Interactive Visual Mode** - See workflows in action with real-time state visualization
 - 🎮 **Interactive Controls** - Manually trigger transitions and explore different paths
 - 🤖 **Automated Scenarios** - Pre-built test cases demonstrating various workflow paths
 - 📝 **Full Source Code** - Production-ready implementations you can adapt
-
-**[➡️ Get Started with Examples](https://github.com/jescrich/nestjs-workflow-examples#-quick-start)**
 
 ## Table of Contents
 - [Features](#features)
@@ -34,11 +32,13 @@ Each example features:
 - [Quick Start](#quick-start)
 - [Module Registration](#module-registration)
 - [Define a Workflow](#define-a-workflow)
-- [Message Format](#message-format)
 - [Configuring Actions and Conditions](#configuring-actions-and-conditions)
-- [Complete Example with Kafka Integration](#complete-example-with-kafka-integration)
-- [Entity Service](#entity-service)
-- [Kafka Integration](#using-entityservice-with-workflow)
+- [Messaging Integration](#messaging-integration)
+  - [When to Use Kafka vs BullMQ](#when-to-use-kafka-vs-bullmq)
+  - [Kafka Integration](#kafka-integration)
+  - [BullMQ Integration](#bullmq-integration)
+- [Entity Service Implementation](#entity-service-implementation)
+- [Examples & Learning Resources](#-examples--learning-resources)
   
 ## Features
 - Workflow Definitions: Define workflows using a simple, declarative syntax
@@ -103,9 +103,8 @@ yarn add @jescrich/nestjs-workflow
 Before diving into code, experience workflows visually with our interactive demos:
 
 ```bash
-# Quick demo setup
-git clone https://github.com/jescrich/nestjs-workflow-examples.git
-cd nestjs-workflow-examples/01-user-onboarding
+# Navigate to the examples directory
+cd examples/01-user-onboarding
 npm install && npm run demo
 ```
 
@@ -123,8 +122,6 @@ You'll see an interactive workflow visualization like this:
                                          ║  ACTIVE  ║
                                          ╚══════════╝
 ```
-
-**[🚀 Explore All Examples](https://github.com/jescrich/nestjs-workflow-examples)**
 
 ### Module Registration
 ```typescript
@@ -407,9 +404,48 @@ Remember to register your action classes as providers in your module:
 export class OrderModule {}
 ```
 
+## Messaging Integration
+
+NestJS Workflow supports integration with popular messaging systems, allowing your workflows to react to events from message queues and event streaming platforms. Choose the messaging backend that best fits your infrastructure:
+
+- **Kafka**: For high-throughput event streaming and distributed systems
+- **BullMQ**: For Redis-based job queues with built-in retry logic and job management
+
+### When to Use Kafka vs BullMQ
+
+| Feature | Kafka | BullMQ |
+|---------|-------|--------|
+| **Best For** | Event streaming, high-throughput systems | Job queues, task processing, simpler setups |
+| **Infrastructure** | Kafka + Zookeeper | Redis |
+| **Complexity** | High (distributed system) | Low (single Redis instance) |
+| **Throughput** | Very high (millions/sec) | High (thousands/sec) |
+| **Latency** | Low | Very low |
+| **Message Ordering** | Partition-level guarantees | Queue-level ordering |
+| **Retry Logic** | Manual implementation | Built-in with exponential backoff |
+| **Dead Letter Queue** | Manual implementation | Built-in |
+| **Job Priorities** | Not supported | Supported |
+| **Delayed Jobs** | Not supported | Supported |
+| **Job Tracking** | Manual | Built-in with job IDs |
+| **Persistence** | Disk-based (durable) | Redis persistence (AOF/RDB) |
+| **Horizontal Scaling** | Consumer groups | Multiple workers |
+| **Use Cases** | Event sourcing, log aggregation, real-time analytics | Background jobs, email sending, scheduled tasks |
+
+**Choose Kafka when:**
+- You need high-throughput event streaming
+- You're building event-sourced systems
+- You need long-term message retention
+- You have distributed microservices
+
+**Choose BullMQ when:**
+- You already use Redis in your stack
+- You need simple job queue functionality
+- You want built-in retry and DLQ support
+- You're building task processing systems
+- You need job priorities or delayed execution
+
 ## Kafka Integration
 
-NestJS Workflow now supports integration with Apache Kafka, allowing your workflows to react to Kafka events and trigger state transitions based on messages from your event streaming platform.
+NestJS Workflow supports integration with Apache Kafka, allowing your workflows to react to Kafka events and trigger state transitions based on messages from your event streaming platform.
 
 ### Setting Up Kafka Integration
 
@@ -575,6 +611,458 @@ The Kafka messages should include the entity URN so that the workflow engine can
 
 With this setup, your workflow will automatically react to Kafka messages and trigger the appropriate state transitions based on your workflow definition.
 
+## BullMQ Integration
+
+NestJS Workflow also supports BullMQ, a Redis-based queue system that provides reliable job processing with built-in retry logic, dead letter queues, and job management. BullMQ is an excellent choice for applications that need task queues without the complexity of Kafka.
+
+### Why BullMQ?
+
+BullMQ offers several advantages for workflow integration:
+
+- **Simple Setup**: Only requires Redis (no Zookeeper or complex configuration)
+- **Built-in Retry Logic**: Automatic job retries with exponential backoff
+- **Dead Letter Queue**: Failed jobs are automatically moved to a DLQ for investigation
+- **Job Tracking**: Every job has a unique ID and can be monitored
+- **Job Priorities**: Process critical workflows first
+- **Delayed Jobs**: Schedule workflow events for future execution
+- **Lower Latency**: Redis-based processing is extremely fast
+- **Familiar Stack**: If you already use Redis, BullMQ is a natural fit
+
+### Installing BullMQ Dependencies
+
+```bash
+npm install bullmq ioredis
+```
+
+Or using yarn:
+
+```bash
+yarn add bullmq ioredis
+```
+
+### Setting Up BullMQ Integration
+
+To configure your workflow to use BullMQ, add a `bullmq` property to your workflow definition:
+
+```typescript
+const orderWorkflowDefinition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
+  // ... other workflow properties
+  states: {
+    finals: [OrderStatus.Completed, OrderStatus.Failed],
+    idles: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+    failed: OrderStatus.Failed,
+  },
+  transitions: [
+    // Your transitions here
+  ],
+  
+  // BullMQ configuration
+  bullmq: {
+    connection: {
+      host: 'localhost',
+      port: 6379,
+      password: 'your-redis-password', // Optional
+      db: 0, // Optional, default is 0
+    },
+    events: [
+      { queue: 'orders.submitted', event: OrderEvent.Submit },
+      { queue: 'orders.completed', event: OrderEvent.Complete },
+      { queue: 'orders.failed', event: OrderEvent.Fail }
+    ],
+    defaultJobOptions: {
+      attempts: 3, // Retry up to 3 times
+      backoff: {
+        type: 'exponential',
+        delay: 30000, // 30 seconds base delay
+      },
+      removeOnComplete: 1000, // Keep last 1000 completed jobs
+      removeOnFail: 5000, // Keep last 5000 failed jobs
+    },
+    deadLetterQueue: {
+      enabled: true,
+      suffix: '-dlq', // Failed jobs go to 'orders.submitted-dlq'
+    }
+  },
+  
+  entity: {
+    // Entity configuration
+    new: () => new Order(),
+    update: async (entity: Order, status: OrderStatus) => {
+      entity.status = status;
+      return entity;
+    },
+    load: async (urn: string) => {
+      // Load entity from storage
+      return new Order();
+    },
+    status: (entity: Order) => entity.status,
+    urn: (entity: Order) => entity.id
+  }
+};
+```
+
+### BullMQ Configuration Options
+
+#### Connection Settings
+
+```typescript
+connection: {
+  host: string;        // Redis host (default: 'localhost')
+  port: number;        // Redis port (default: 6379)
+  password?: string;   // Redis password (optional)
+  db?: number;         // Redis database number (default: 0)
+  tls?: object;        // TLS configuration for secure connections (optional)
+}
+```
+
+#### Event Mapping
+
+Map BullMQ queues to workflow events:
+
+```typescript
+events: [
+  { 
+    queue: 'orders.submitted',  // BullMQ queue name
+    event: OrderEvent.Submit,   // Workflow event to trigger
+    jobName?: 'submit-order'    // Optional: filter by job name
+  }
+]
+```
+
+#### Job Options
+
+Configure retry behavior and job lifecycle:
+
+```typescript
+defaultJobOptions: {
+  attempts: 3,              // Number of retry attempts (default: 3)
+  backoff: {
+    type: 'exponential',    // 'exponential' or 'fixed'
+    delay: 30000,           // Base delay in milliseconds (default: 30000)
+  },
+  removeOnComplete: 1000,   // Keep last N completed jobs (or true/false)
+  removeOnFail: 5000,       // Keep last N failed jobs (or true/false)
+}
+```
+
+**Retry Schedule Example:**
+- Attempt 1: Immediate
+- Attempt 2: 30 seconds delay
+- Attempt 3: 60 seconds delay (exponential backoff)
+- After 3 attempts: Move to Dead Letter Queue
+
+#### Dead Letter Queue
+
+Configure automatic handling of permanently failed jobs:
+
+```typescript
+deadLetterQueue: {
+  enabled: true,      // Enable DLQ (default: false)
+  suffix: '-dlq',     // Queue suffix for failed jobs (default: '-dlq')
+}
+```
+
+When enabled, jobs that fail after all retry attempts are automatically moved to a separate queue (e.g., `orders.submitted-dlq`) with full error context for investigation.
+
+### Module Registration with BullMQ
+
+Register your workflow with BullMQ support:
+
+```typescript
+import { Module } from '@nestjs/common';
+import { WorkflowModule } from '@jescrich/nestjs-workflow';
+
+@Module({
+  imports: [
+    WorkflowModule.register({
+      name: 'orderWorkflow',
+      definition: orderWorkflowDefinition,
+      bullmq: {
+        enabled: true,
+        config: orderWorkflowDefinition.bullmq!
+      }
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+**Important:** You cannot enable both Kafka and BullMQ simultaneously. The module will throw an error if both are configured.
+
+### Complete Example with BullMQ Integration
+
+```typescript
+import { Injectable, Module } from '@nestjs/common';
+import { WorkflowModule, WorkflowDefinition, WorkflowService } from '@jescrich/nestjs-workflow';
+
+// Define your entity and state/event enums
+export enum OrderEvent {
+  Create = 'order.create',
+  Submit = 'order.submit',
+  Complete = 'order.complete',
+  Fail = 'order.fail',
+}
+
+export enum OrderStatus {
+  Pending = 'pending',
+  Processing = 'processing',
+  Completed = 'completed',
+  Failed = 'failed',
+}
+
+export class Order {
+  id: string;
+  name: string;
+  price: number;
+  items: string[];
+  status: OrderStatus;
+}
+
+// Create workflow definition with BullMQ integration
+const orderWorkflowDefinition: WorkflowDefinition<Order, any, OrderEvent, OrderStatus> = {
+  states: {
+    finals: [OrderStatus.Completed, OrderStatus.Failed],
+    idles: [OrderStatus.Pending, OrderStatus.Processing, OrderStatus.Completed, OrderStatus.Failed],
+    failed: OrderStatus.Failed,
+  },
+  transitions: [
+    {
+      from: OrderStatus.Pending,
+      to: OrderStatus.Processing,
+      event: OrderEvent.Submit,
+      conditions: [(entity: Order, payload: any) => entity.price > 10],
+    },
+    {
+      from: OrderStatus.Processing,
+      to: OrderStatus.Completed,
+      event: OrderEvent.Complete,
+    },
+    {
+      from: OrderStatus.Processing,
+      to: OrderStatus.Failed,
+      event: OrderEvent.Fail,
+    },
+  ],
+  
+  // BullMQ configuration
+  bullmq: {
+    connection: {
+      host: 'localhost',
+      port: 6379,
+    },
+    events: [
+      { queue: 'orders.submitted', event: OrderEvent.Submit },
+      { queue: 'orders.completed', event: OrderEvent.Complete },
+      { queue: 'orders.failed', event: OrderEvent.Fail }
+    ],
+    defaultJobOptions: {
+      attempts: 3,
+      backoff: {
+        type: 'exponential',
+        delay: 30000,
+      },
+    },
+    deadLetterQueue: {
+      enabled: true,
+    }
+  },
+  
+  entity: {
+    new: () => new Order(),
+    update: async (entity: Order, status: OrderStatus) => {
+      entity.status = status;
+      return entity;
+    },
+    load: async (urn: string) => {
+      // In a real application, load from database
+      const order = new Order();
+      order.id = urn;
+      order.status = OrderStatus.Pending;
+      return order;
+    },
+    status: (entity: Order) => entity.status,
+    urn: (entity: Order) => entity.id
+  }
+};
+
+@Module({
+  imports: [
+    WorkflowModule.register({
+      name: 'orderWorkflow',
+      definition: orderWorkflowDefinition,
+      bullmq: {
+        enabled: true,
+        config: orderWorkflowDefinition.bullmq!
+      }
+    }),
+  ],
+})
+export class AppModule {}
+```
+
+### Producing Jobs to BullMQ
+
+To trigger workflow events, produce jobs to BullMQ queues:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { BullMQClient } from '@jescrich/nestjs-workflow';
+
+@Injectable()
+export class OrderProducerService {
+  constructor(private readonly bullmqClient: BullMQClient) {}
+  
+  async submitOrder(orderId: string, orderData: any) {
+    // Add job to queue
+    const job = await this.bullmqClient.produce(
+      'orders.submitted',           // Queue name
+      'submit-order',               // Job name
+      {
+        urn: orderId,               // Entity URN (required)
+        payload: orderData          // Event payload (optional)
+      }
+    );
+    
+    console.log(`Job added with ID: ${job.id}`);
+    return job;
+  }
+}
+```
+
+### Job Data Format
+
+BullMQ jobs must include the entity URN so the workflow engine can load the correct entity:
+
+```json
+{
+  "urn": "order-123",
+  "payload": {
+    "price": 150,
+    "items": ["Item 1", "Item 2"]
+  }
+}
+```
+
+The `urn` field is required, while `payload` is optional and will be passed to your workflow actions and conditions.
+
+### How BullMQ Integration Works
+
+When you configure BullMQ integration:
+
+1. The workflow engine connects to Redis using the provided connection settings
+2. It creates BullMQ workers for each queue defined in the `events` array
+3. When a job arrives on a subscribed queue:
+   - The worker extracts the URN and payload from the job data
+   - It loads the entity using your defined `entity.load` function
+   - It emits the mapped workflow event with the job payload
+   - If the transition succeeds, the job is marked as completed
+   - If the transition fails, BullMQ automatically retries with backoff
+   - After all retries are exhausted, the job moves to the dead letter queue
+
+### Monitoring and Health Checks
+
+Check BullMQ connection health:
+
+```typescript
+import { Injectable } from '@nestjs/common';
+import { BullMQClient } from '@jescrich/nestjs-workflow';
+
+@Injectable()
+export class HealthService {
+  constructor(private readonly bullmqClient: BullMQClient) {}
+  
+  async checkBullMQ(): Promise<boolean> {
+    return await this.bullmqClient.isHealthy();
+  }
+}
+```
+
+### Error Handling and Logging
+
+BullMQ integration provides comprehensive logging:
+
+- **Worker Initialization**: Logs when workers are created for each queue
+- **Job Processing**: Logs job ID, URN, and queue name for each job
+- **Success**: Logs successful workflow transitions
+- **Failures**: Logs errors with retry attempt numbers
+- **Dead Letter Queue**: Logs when jobs are moved to DLQ
+- **Connection Issues**: Logs Redis connection failures
+
+Example log output:
+
+```
+[BullMQClient] Worker initialized for queue: orders.submitted
+[BullMQClient] Processing job: job-123 (queue: orders.submitted, urn: order-456)
+[BullMQClient] Job processed successfully: job-123 (urn: order-456)
+[BullMQClient] Job processing failed: job-789 (attempt 2/3, urn: order-999)
+[BullMQClient] Job exceeded retry limit: job-789 (urn: order-999)
+[BullMQClient] Job sent to DLQ: job-789 (queue: orders.submitted-dlq)
+```
+
+### Graceful Shutdown
+
+BullMQ workers shut down gracefully when your application stops:
+
+```typescript
+// Automatic shutdown when module is destroyed
+// Workers complete in-flight jobs before closing
+// Queues are properly closed to prevent connection leaks
+```
+
+The BullMQ client implements NestJS lifecycle hooks to ensure:
+- Active jobs are completed before shutdown (with timeout)
+- All workers are closed properly
+- All queue connections are terminated
+- Shutdown progress is logged
+
+### Migrating from Kafka to BullMQ
+
+If you're currently using Kafka and want to switch to BullMQ:
+
+1. **Install BullMQ dependencies**: `npm install bullmq ioredis`
+2. **Replace `kafka` with `bullmq`** in your workflow definition
+3. **Update module registration** to enable BullMQ instead of Kafka
+4. **Change topic names to queue names** in your event mappings
+5. **Update producers** to use `BullMQClient.produce()` instead of Kafka producer
+
+See the [BullMQ example](examples/04-bullmq-task) for a complete working implementation.
+
+### BullMQ vs Kafka: Feature Comparison
+
+| Feature | Kafka Implementation | BullMQ Implementation |
+|---------|---------------------|----------------------|
+| **Configuration** | `kafka: { brokers, events }` | `bullmq: { connection, events }` |
+| **Event Mapping** | `{ topic, event }` | `{ queue, event }` |
+| **Retry Logic** | Manual (pause/resume consumer) | Automatic with exponential backoff |
+| **Dead Letter Queue** | Manual implementation required | Built-in with configuration |
+| **Job Tracking** | Manual correlation IDs | Built-in job IDs |
+| **Delayed Events** | Not supported | Supported (delayed jobs) |
+| **Priority Events** | Not supported | Supported (job priorities) |
+| **Health Checks** | Consumer group status | Redis ping |
+| **Graceful Shutdown** | Consumer disconnect | Worker completion with timeout |
+| **Message Ordering** | Partition-level guarantees | Queue-level FIFO |
+| **Horizontal Scaling** | Consumer groups | Multiple workers |
+
+### Best Practices
+
+1. **Configure Dead Letter Queues**: Always enable DLQ to capture failed jobs for investigation
+2. **Set Appropriate Retry Counts**: Balance between resilience and fast failure (3 attempts is a good default)
+3. **Monitor Queue Depth**: Watch for growing queues that indicate processing issues
+4. **Use Job Removal Policies**: Prevent Redis memory bloat by removing old completed/failed jobs
+5. **Implement Health Checks**: Monitor Redis connectivity in your application health endpoints
+6. **Use Unique Job IDs**: Include entity URN and timestamp in job names for traceability
+7. **Log Comprehensively**: Use the built-in logging to track job lifecycle
+8. **Test Retry Scenarios**: Verify your workflows handle transient failures correctly
+9. **Secure Redis**: Use passwords and TLS for production Redis instances
+10. **Plan for Scale**: Consider Redis Cluster for high-availability setups
+
+### Additional Resources
+
+For comprehensive API documentation including detailed method signatures, type definitions, and advanced usage examples, see:
+
+- **[BullMQ API Documentation](docs/BULLMQ_API.md)** - Complete API reference for BullMQClient, interfaces, and types
+- **[BullMQ Example](examples/04-bullmq-task)** - Working example with interactive demo
+
 ## Entity Service Implementation
 
 NestJS Workflow allows you to implement an `EntityService` to manage your entity's lifecycle and state. This provides a cleaner separation of concerns between your workflow logic and entity management.
@@ -736,10 +1224,17 @@ This approach is particularly useful for complex applications where entities are
 
 ## 📚 Examples & Learning Resources
 
-### Interactive Examples Repository
-The best way to learn is by exploring our **[comprehensive examples repository](https://github.com/jescrich/nestjs-workflow-examples)** which includes:
+### Interactive Examples
+The best way to learn is by exploring the comprehensive examples included in the `examples/` directory:
 
-#### 1. User Onboarding Workflow Example
+#### 1. Basic Example (`examples/00-basic-example`)
+Simple task workflow to get started:
+- Basic workflow setup and configuration
+- Simple state transitions
+- Entity service implementation
+- States: `PENDING` → `IN_PROGRESS` → `COMPLETED`
+
+#### 2. User Onboarding Workflow (`examples/01-user-onboarding`)
 Demonstrates a real-world user registration and verification system:
 - Progressive profile completion with automatic transitions
 - Multi-factor authentication flows
@@ -747,7 +1242,7 @@ Demonstrates a real-world user registration and verification system:
 - Compliance checks (KYC/AML)
 - States: `REGISTERED` → `EMAIL_VERIFIED` → `PROFILE_COMPLETE` → `IDENTITY_VERIFIED` → `ACTIVE`
 
-#### 2. E-Commerce Order Processing Example  
+#### 3. E-Commerce Order Processing (`examples/02-order-processing`)
 Complete order lifecycle management system:
 - Payment processing with retry logic
 - Inventory reservation and management
@@ -755,7 +1250,7 @@ Complete order lifecycle management system:
 - Refund and return handling
 - States: `CREATED` → `PAYMENT_PENDING` → `PAID` → `PROCESSING` → `SHIPPED` → `DELIVERED`
 
-#### 3. Kafka-Driven Inventory Management
+#### 4. Kafka-Driven Inventory Management (`examples/03-kafka-inventory`)
 Event-driven inventory system with Kafka integration:
 - Real-time stock level updates via Kafka events
 - Automatic reorder triggering
@@ -763,20 +1258,37 @@ Event-driven inventory system with Kafka integration:
 - Multi-warehouse support
 - Special states for `QUARANTINE`, `AUDITING`, `DAMAGED`, `EXPIRED`
 
+#### 5. BullMQ Task Processing (`examples/04-bullmq-task`)
+Redis-based job queue workflow with BullMQ integration:
+- BullMQ queue configuration and setup
+- Job retry logic with exponential backoff
+- Dead letter queue for failed jobs
+- Task processing with workflow state management
+- States: `PENDING` → `PROCESSING` → `COMPLETED` / `FAILED`
+
 ### Running the Examples
 
 ```bash
-# Clone the examples repository
-git clone https://github.com/jescrich/nestjs-workflow-examples.git
-cd nestjs-workflow-examples
+# Navigate to the examples directory
+cd examples
 
-# Install all examples
+# Install all examples at once
 npm run install:all
+# Or on Windows
+install-all.bat
 
-# Run interactive demos with visual workflow diagrams
-npm run demo:user-onboarding    # User onboarding demo
-npm run demo:order-processing   # Order processing demo
-npm run demo:kafka-inventory    # Kafka inventory demo
+# Run individual examples with interactive demos
+cd 01-user-onboarding
+npm install
+npm run demo    # Interactive demo with visual workflow diagrams
+
+cd ../02-order-processing
+npm install
+npm run demo
+
+cd ../04-bullmq-task
+npm install
+npm run demo
 ```
 
 The interactive demos feature:

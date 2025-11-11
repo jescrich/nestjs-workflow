@@ -1,9 +1,11 @@
 name: Build
 
 on:
+  push:
+    branches: [ "**" ]  # Run on all branches
   pull_request:
-    branches: [ "main", "develop" ]
-  workflow_dispatch: # This allows manual triggering:
+    branches: [ "**" ]  # Run on PRs to any branch
+  workflow_dispatch: # This allows manual triggering
     
 jobs:
   build:
@@ -19,7 +21,11 @@ jobs:
       uses: actions/setup-node@v4
       with:
         node-version: ${{ matrix.node-version }}
-        cache: 'npm'
+        cache: 'yarn'
+        cache-dependency-path: 'packages/base/yarn.lock'
     - run: yarn
+      working-directory: packages/base
     - run: yarn build
+      working-directory: packages/base
     - run: yarn test
+      working-directory: packages/base

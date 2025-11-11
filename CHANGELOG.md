@@ -5,6 +5,57 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.0.6] - 2025-11-11
+
+### Added
+- **BullMQ Integration**: Complete BullMQ messaging adapter for event-driven workflows
+  - BullMQClient for queue management with producer and consumer functionality
+  - Automatic retry logic with configurable attempts and exponential backoff
+  - Dead Letter Queue (DLQ) support for failed jobs after retry exhaustion
+  - Health check functionality with Redis connection monitoring
+  - Graceful shutdown with proper worker and queue cleanup
+  - Support for multiple queues per workflow with independent event handling
+  - Concurrent job processing with configurable worker options
+  - Comprehensive logging for job lifecycle (production, processing, success, failure, DLQ)
+- **GitHub Release Automation**: Automatic GitHub release creation on NPM package publish
+- **Documentation Enhancements**:
+  - Added interactive examples and demos section with links to examples repository
+  - Included real-world workflow examples (User Onboarding, Order Processing, Kafka-Driven Inventory)
+  - Added dark/light mode support for README images
+  - Comprehensive BullMQ configuration and usage documentation
+
+### Fixed
+- **Critical**: Fixed inline actions executing when OnEvent actions fail
+  - Properly initialize `failed` variable to track error state
+  - Skip inline actions if OnEvent actions have already failed
+  - Improved error handling and state management in WorkflowService
+  - Added test coverage for OnEvent error scenarios
+
+### Changed
+- Enhanced WorkflowModule to support BullMQ configuration alongside Kafka
+- Added mutual exclusivity validation between Kafka and BullMQ (only one can be enabled)
+- Extended WorkflowDefinition interface with optional `bullmq` property
+- Improved test infrastructure with Redis test utilities and helpers
+
+### Testing
+- Added comprehensive BullMQ test suite:
+  - End-to-end workflow execution tests
+  - Multiple workflows sharing same Redis instance
+  - Concurrent job processing tests
+  - Error scenario tests (retry, DLQ, connection failures)
+  - Performance tests for high-volume job throughput
+  - Graceful shutdown tests with in-flight jobs
+
+## [1.0.5] - 2025-08-18
+
+### Fixed
+- Updated entity service token resolution in WorkflowModule
+
+## [1.0.4] - 2025-08-18
+
+### Changed
+- Minor improvements and bug fixes
+
 ## [1.0.3]
 
 ### Fixed

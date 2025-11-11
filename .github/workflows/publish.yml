@@ -27,8 +27,8 @@ jobs:
         with:
           node-version: 20
           registry-url: https://npm.pkg.github.com/
-          cache: 'npm'
-          cache-dependency-path: 'packages/base/package-lock.json'
+          cache: 'yarn'
+          cache-dependency-path: 'packages/base/yarn.lock'
       - run: yarn
         working-directory: packages/base
       - run: yarn build
@@ -53,8 +53,8 @@ jobs:
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org/ # Use NPM registry for setup
-          cache: 'npm'
-          cache-dependency-path: 'packages/base/package-lock.json'
+          cache: 'yarn'
+          cache-dependency-path: 'packages/base/yarn.lock'
       - run: yarn
         working-directory: packages/base
       - run: yarn build

@@ -189,7 +189,7 @@ export class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit
 
         this.logger.log(`Executing transition from ${entityCurrentState} to ${nextStatus}`, urn);
 
-        let failed;
+        let failed = false;
 
         if (this.actionsOnEvent.has(currentEvent)) {
           const actions = this.actionsOnEvent.get(currentEvent);
@@ -209,20 +209,23 @@ export class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit
           }
         }
 
-        ({
-          failed,
-          Element: entity,
-          message,
-        } = await this.executeInlineActions(
-          transition,
-          entity,
-          currentEvent,
-          message,
-          payload,
-          entityCurrentState,
-          nextStatus,
-          urn,
-        ));
+        // Only execute inline actions if OnEvent actions haven't failed
+        if (!failed) {
+          ({
+            failed,
+            Element: entity,
+            message,
+          } = await this.executeInlineActions(
+            transition,
+            entity,
+            currentEvent,
+            message,
+            payload,
+            entityCurrentState,
+            nextStatus,
+            urn,
+          ));
+        }
 
         // If the transition failed, set the status to failed and break the loop
 
@@ -250,7 +253,7 @@ export class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit
                 entity = await action.action({ entity, payload });
               } catch (error) {
                 this.logger.error(`Action ${action.action.name} failed: ${error.message}`, urn);
-                failed = action.failOnError;
+                failed = action.failOnError ?? true;
                 break;
               }
             }

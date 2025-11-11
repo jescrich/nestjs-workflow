@@ -1,0 +1,20 @@
+#!/usr/bin/env sh
+. "$(dirname -- "$0")/_/husky.sh"
+
+# Navigate to packages/base directory
+cd packages/base
+
+# Get current branch
+BRANCH=$(git rev-parse --abbrev-ref HEAD)
+
+# Bump version based on branch
+if [ "$BRANCH" = "develop" ]; then
+  # For develop branch, create a snapshot version
+  yarn version --new-version "$(node -p "require('./package.json').version")-snapshot.$(date +%Y%m%d%H%M%S)" --no-git-tag-version
+elif [ "$BRANCH" = "main" ]; then
+  # For main branch, bump patch version
+  yarn version --patch --no-git-tag-version
+fi
+
+# Add the updated package.json to the commit
+git add package.json

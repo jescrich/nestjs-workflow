@@ -1,0 +1,13 @@
+{
+  "name": "@examples/demo",
+  "version": "1.0.0",
+  "description": "Reusable demo components for workflow examples",
+  "main": "index.ts",
+  "dependencies": {
+    "@jescrich/nestjs-workflow": "^1.0.3",
+    "chalk": "^4.1.2"
+  },
+  "devDependencies": {
+    "@types/node": "^20.11.6"
+  }
+}

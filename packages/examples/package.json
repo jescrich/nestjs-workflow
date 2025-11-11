@@ -1,0 +1,40 @@
+{
+  "name": "@jescrich/nestjs-workflow-examples",
+  "version": "1.0.0",
+  "description": "Examples demonstrating the NestJS Workflow library",
+  "private": true,
+  "scripts": {
+    "install:all": "npm run install:basic-example && npm run install:user-onboarding && npm run install:order-processing && npm run install:kafka-inventory && npm run install:demo",
+    "install:basic-example": "cd 00-basic-example && npm install",
+    "install:user-onboarding": "cd 01-user-onboarding && npm install",
+    "install:order-processing": "cd 02-order-processing && npm install",
+    "install:kafka-inventory": "cd 03-kafka-inventory && npm install",
+    "install:demo": "cd demo && npm install",
+    "demo:basic-example": "cd 00-basic-example && npm run demo",
+    "demo:user-onboarding": "cd 01-user-onboarding && npm run demo",
+    "demo:order-processing": "cd 02-order-processing && npm run demo",
+    "demo:kafka-inventory": "cd 03-kafka-inventory && npm run demo",
+    "start:basic-example": "cd 00-basic-example && npm start",
+    "start:user-onboarding": "cd 01-user-onboarding && npm start",
+    "start:order-processing": "cd 02-order-processing && npm start",
+    "start:kafka-inventory": "cd 03-kafka-inventory && npm start",
+    "clean": "rm -rf */node_modules */package-lock.json */yarn.lock */dist",
+    "clean:windows": "for /d %i in (*) do @if exist \"%i\\node_modules\" rmdir /s /q \"%i\\node_modules\" && @if exist \"%i\\dist\" rmdir /s /q \"%i\\dist\""
+  },
+  "keywords": [
+    "nestjs",
+    "workflow",
+    "state-machine",
+    "examples",
+    "demo",
+    "visualization"
+  ],
+  "author": "José Escrich",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/jescrich/nestjs-workflow.git",
+    "directory": "examples"
+  }
+}
+

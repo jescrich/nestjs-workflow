@@ -1,5 +1,3 @@
-**/dist
-**/node_modules
 dist
 node_modules
 **.tsbuildinfo
@@ -7,4 +5,3 @@ node_modules
 *.js
 **.d.ts
 *.js.map
-.kiro

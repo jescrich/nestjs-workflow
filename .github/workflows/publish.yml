@@ -6,12 +6,11 @@ on:
   push:
     branches: [ "main", "develop" ]
     paths-ignore:
-      - 'package.json'
-      - '.github/workflows/**'
-      - 'README.md'
-      - 'CHANGELOG.md'
-      - 'CONTRIBUTING.md'
-      - 'CODE_OF_CONDUCT.md'
+      - 'packages/base/.github/workflows/**'
+      - 'packages/base/README.md'
+      - 'packages/base/CHANGELOG.md'
+      - 'packages/base/CONTRIBUTING.md'
+      - 'packages/base/CODE_OF_CONDUCT.md'
 
   workflow_dispatch:
 
@@ -28,27 +27,17 @@ jobs:
         with:
           node-version: 20
           registry-url: https://npm.pkg.github.com/
+          cache: 'yarn'
+          cache-dependency-path: 'packages/base/yarn.lock'
       - run: yarn
-      - run: |
-          git config --global user.email "gitops@joseescrich.com"
-          git config --global user.name "jes"
-          if [ "${{ github.ref }}" == "refs/heads/develop" ]; then
-            yarn version --new-version "$(node -p "require('./package.json').version")-snapshot.$(date +%Y%m%d%H%M%S)"
-          elif [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            yarn version --patch
-          fi
+        working-directory: packages/base
       - run: yarn build
+        working-directory: packages/base
       - run: npm publish --registry=https://npm.pkg.github.com/
         name: Publish to GitHub Package Registry
+        working-directory: packages/base
         env:
           NODE_AUTH_TOKEN: ${{secrets.GH_TOKEN}}
-      - run: |
-          if [ "${{ github.ref }}" == "refs/heads/main" ]; then
-            git push origin HEAD:${{ github.ref }}
-          fi
-        name: Push Version
-        env:
-          GITHUB_TOKEN: ${{ secrets.GH_TOKEN }}
 
   publish-npm:
     name: Build and Publish to NPM
@@ -64,11 +53,36 @@ jobs:
         with:
           node-version: 20
           registry-url: https://registry.npmjs.org/ # Use NPM registry for setup
+          cache: 'yarn'
+          cache-dependency-path: 'packages/base/yarn.lock'
       - run: yarn
+        working-directory: packages/base
       - run: yarn build
+        working-directory: packages/base
       - run: |
           npm config set //registry.npmjs.org/:_authToken=${{secrets.NPM_TOKEN}}
           npm publish --access=public --registry=https://registry.npmjs.org/
         name: Publish to NPM
+        working-directory: packages/base
         env:
           NODE_AUTH_TOKEN: ${{secrets.NPM_TOKEN}}
+      
+      - name: Get package version
+        id: package-version
+        run: echo "version=$(node -p "require('./packages/base/package.json').version")" >> $GITHUB_OUTPUT
+      
+      - name: Create GitHub Release
+        uses: actions/create-release@v1
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        with:
+          tag_name: v${{ steps.package-version.outputs.version }}
+          release_name: Release v${{ steps.package-version.outputs.version }}
+          body: |
+            ## Release v${{ steps.package-version.outputs.version }}
+            
+            Published to NPM: https://www.npmjs.com/package/@jescrich/nestjs-workflow/v/${{ steps.package-version.outputs.version }}
+            
+            See [CHANGELOG.md](https://github.com/jescrich/nestjs-workflow/blob/main/packages/base/CHANGELOG.md) for details.
+          draft: false
+          prerelease: false

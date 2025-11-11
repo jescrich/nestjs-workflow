@@ -19,7 +19,7 @@
     "format": "prettier --write \"src/**/*.ts\" \"test/**/*.ts\"",
     "lint": "eslint \"{src,apps,libs,test}/**/*.ts\" --fix",
     "test": "jest --config jest.config.cjs --no-watchman ",
-    "test:ci": "jest --config jest.config.cjs --no-watchman --testPathIgnorePatterns=bullmq",
+    "test:ci": "CI=true jest --config jest.config.cjs --no-watchman",
     "test:watch": "jest --watch --config jest.config.cjs --no-watchman",
     "test:cov": "jest --coverage --config jest.config.cjs --no-watchman",
     "test:debug": "node --inspect-brk -r tsconfig-paths/register -r ts-node/register node_modules/.bin/jest --runInBand",

@@ -27,5 +27,5 @@ jobs:
       working-directory: packages/base
     - run: yarn build
       working-directory: packages/base
-    - run: yarn test
+    - run: yarn test:ci
       working-directory: packages/base

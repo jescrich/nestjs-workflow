@@ -466,7 +466,6 @@ Then open `http://localhost:3000/admin/queues` to view queue status.
 ## Next Steps
 
 - Explore the [demo](src/demo/README.md) for detailed scenarios
-- Review the [design document](../../.kiro/specs/bullmq-messaging-adapter/design.md)
 - Check out other examples in the `examples/` directory
 - Read the [main library documentation](../../README.md)
 

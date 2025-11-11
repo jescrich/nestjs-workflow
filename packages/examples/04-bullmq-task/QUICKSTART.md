@@ -108,4 +108,3 @@ export REDIS_PORT=6380
 - [Full Documentation](README.md)
 - [Demo Scenarios](src/demo/README.md)
 - [BullMQ Docs](https://docs.bullmq.io/)
-- [Design Document](../../.kiro/specs/bullmq-messaging-adapter/design.md)

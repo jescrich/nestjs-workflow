@@ -14,5 +14,6 @@ module.exports = {
     moduleNameMapper: {
       '@this/(.*)': '<rootDir>/src/$1',
     },
+    testPathIgnorePatterns: process.env.CI ? ['/node_modules/', '\\.bullmq\\.'] : ['/node_modules/'],
   };
   

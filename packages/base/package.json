@@ -1,6 +1,6 @@
 {
   "name": "@jescrich/nestjs-workflow",
-  "version": "1.1.2",
+  "version": "1.1.3",
   "description": "Workflow and State Machines for NestJS",
   "license": "MIT",
   "author": "José Escrich",
@@ -10,7 +10,9 @@
   "readme": "README.md",
   "private": false,
   "files": [
-    "./dist/**"
+    "./dist/**",
+    "README.md",
+    "CHANGELOG.md"
   ],
   "scripts": {
     "prebuild": "npm run clean",

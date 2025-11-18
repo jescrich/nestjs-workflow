@@ -29,6 +29,7 @@ jobs:
           registry-url: https://npm.pkg.github.com/
           cache: 'yarn'
           cache-dependency-path: 'packages/base/yarn.lock'
+      - run: cp README.md packages/base/README.md
       - run: yarn
         working-directory: packages/base
       - run: yarn build
@@ -55,6 +56,7 @@ jobs:
           registry-url: https://registry.npmjs.org/ # Use NPM registry for setup
           cache: 'yarn'
           cache-dependency-path: 'packages/base/yarn.lock'
+      - run: cp README.md packages/base/README.md
       - run: yarn
         working-directory: packages/base
       - run: yarn build

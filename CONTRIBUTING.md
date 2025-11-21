@@ -102,7 +102,3 @@ Adhering to these standards ensures code quality and readability.
 ## License
 
 By contributing, you agree that your contributions will be licensed under the [MIT License](LICENSE).
-
----
-
-This guide is inspired by best practices from various open-source projects and aims to create a welcoming environment for all contributors. 

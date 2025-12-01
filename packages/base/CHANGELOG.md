@@ -5,6 +5,33 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.0] - 2025-12-01
+
+### Changed
+- **Removed unused @nestjs/terminus dependency**: Removed unnecessary peer dependency to fix compatibility issues with Terminus v11 
+  - This removes a constraint and allows users to use any version of Terminus or not use it at all
+
+### Updated
+- **Internal dependencies updated** (non-breaking):
+  - Upgraded bullmq to 5.65.0 (patch update)
+  - These are bundled with the package and don't affect consumer's dependencies
+
+- **Development dependencies updated** (doesn't affect consumers):
+  - Upgraded TypeScript to 5.9.3
+  - Upgraded ESLint packages to 8.48.0
+  - Upgraded Chai to 6.2.1 (major update, but dev only)
+  - Upgraded del-cli to 7.0.0 (major update, but dev only)
+  - Upgraded Stripe SDK to 20.0.0 (major update, but dev only)
+  - Updated various other development dependencies
+
+### Security
+- Addressed security vulnerabilities in development dependencies
+- Note: Most vulnerabilities (37 total) are in transitive development dependencies and don't affect production usage of the package
+
+### Compatibility
+- **Maintained full backward compatibility** with NestJS 11.0.1+
+- Peer dependencies remain at ^11.0.1 to ensure existing users can upgrade without issues
+
 ## [1.1.1] - 2025-11-12
 
 ### Added

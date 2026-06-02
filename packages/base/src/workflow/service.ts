@@ -473,9 +473,16 @@ export class WorkflowService<T, P, E, S> implements Workflow<T, E>, OnModuleInit
     }
 
     for (const kafkaDef of this.definition.kafka?.events) {
+      // Each inbound topic gets its own kafkajs consumer. They MUST NOT share one
+      // group: Kafka requires a consistent subscription across a group's members, so
+      // N single-topic consumers in one group corrupts partition assignment and some
+      // topics are never consumed (the "received unsubscribed topics" → permanent lag
+      // bug). Honour an explicit per-event groupId, else derive a unique-per-topic
+      // default so each consumer is alone in its own group.
+      const groupId = kafkaDef.groupId ?? `${this.definition.name}consumer-${kafkaDef.topic}`;
       this.kafkaClient.consume(
         kafkaDef.topic,
-        this.definition.name + 'consumer',
+        groupId,
         async (params: { key: string; event: T | P; payload?: EventMessage }) => {
           const { key, event } = params;
           this.logger.log(`Kafka Event received on topic ${kafkaDef.topic} with key ${key}`, key);

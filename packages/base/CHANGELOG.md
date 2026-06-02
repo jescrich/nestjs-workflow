@@ -5,6 +5,24 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [1.2.3] - 2026-06-02
+
+### Fixed
+- **Kafka inbound consumers no longer share one consumer group** — a multi-event
+  workflow (several `kafka.events[]` entries) created one kafkajs consumer per topic
+  but joined them ALL to the same hardcoded group (`<workflow>consumer`). Kafka
+  requires a consistent subscription across a group's members, so the coordinator
+  assigned a member partitions for a topic it never subscribed to and those messages
+  were silently never consumed (kafkajs' "received unsubscribed topics" → permanent
+  consumer lag). Each topic now consumes under a unique-per-topic default group
+  (`<workflow>consumer-<topic>`), so every consumer is the sole member of its own
+  group and reliably drains its topic.
+
+### Added
+- **`KafkaEvent.groupId?`** — optionally set the consumer group for a specific
+  inbound topic (e.g. a tenant/service/purpose-scoped name). When omitted, the
+  unique-per-topic default above is derived.
+
 ## [1.2.0] - 2025-12-01
 
 ### Changed

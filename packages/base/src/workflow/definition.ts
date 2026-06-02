@@ -22,6 +22,21 @@ export interface TransitionEvent<T, P, Event, States> {
 export interface KafkaEvent<Event> {
   topic: string;
   event: Event;
+  /**
+   * Kafka consumer group for THIS topic's consumer. Optional.
+   *
+   * Each inbound topic is consumed by its own kafkajs consumer. Kafka requires a
+   * consistent subscription across all members of a consumer group, so multiple
+   * single-topic consumers MUST NOT share one group — the coordinator would assign
+   * a member partitions for a topic it never subscribed to, and those messages are
+   * silently never consumed (kafkajs' "received unsubscribed topics" → permanent lag).
+   *
+   * When omitted, the service derives a UNIQUE-per-topic default
+   * (`<workflow>consumer-<topic>`) so each consumer is the sole member of its own
+   * group and reliably drains its topic. Set this explicitly to control the group
+   * name (e.g. a tenant/service/purpose-scoped name).
+   */
+  groupId?: string;
 }
 
 export interface BullMQEvent<Event> {

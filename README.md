@@ -4,8 +4,13 @@
   <img src="https://joseescrich.com/logos/nestjs-workflow.png" alt="NestJS Workflow Logo" width="200" style="margin-bottom:20px">
 </picture>
 
+[![npm version](https://img.shields.io/npm/v/@jescrich/nestjs-workflow.svg)](https://www.npmjs.com/package/@jescrich/nestjs-workflow)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+[![TypeScript](https://img.shields.io/badge/TypeScript-5.0+-blue.svg)](https://www.typescriptlang.org/)
+[![LLMs.txt](https://img.shields.io/badge/LLMs.txt-Supported-brightgreen.svg)](llms.txt)
+
 # NestJS Workflow & State Machine
-A flexible workflow engine built on top of NestJS framework, enabling developers to create, manage, and execute complex workflows in their Node.js applications.
+A flexible, declarative workflow and finite state machine (FSM) engine built natively on top of the NestJS framework. Manage complex, multi-step business processes and distributed sagas without the operational complexity of external workflow servers.
 
 ## 🎯 Live Examples & Demos
 
@@ -25,7 +30,28 @@ Each example features:
 - 🤖 **Automated Scenarios** - Pre-built test cases demonstrating various workflow paths
 - 📝 **Full Source Code** - Production-ready implementations you can adapt
 
+## ⚖️ Why `@jescrich/nestjs-workflow` vs Alternatives
+
+| Feature / Criteria | `@jescrich/nestjs-workflow` | Temporal / Camunda | XState | BullMQ Standalone |
+| :--- | :--- | :--- | :--- | :--- |
+| **Infrastructure Overhead** | **Zero** (Runs in your NestJS app) | High (Requires external server cluster) | **Zero** | Low (Requires Redis) |
+| **NestJS Native DI & Decorators** | ✅ **100% Native** | ❌ Wrapper required | ❌ Generic TS | 🟡 Queue only |
+| **Stateless Domain-Driven** | ✅ Entity-owned state | ❌ External orchestrator state | 🟡 In-memory machine | ❌ Custom state logic |
+| **Declarative FSM Transitions** | ✅ Explicit transitions & guards | 🟡 Procedural code | ✅ Rich statecharts | ❌ Hand-coded logic |
+| **Async Queues & Retries** | ✅ BullMQ & Kafka built-in | ✅ Built-in | ❌ External | ✅ Pure queue |
+| **Best For** | **NestJS Sagas, E-commerce, Onboarding, Approval Flows** | Enterprise cross-language clusters | Frontend UI / browser state | Background task jobs |
+
+## 🤖 Using with AI Coding Assistants (Cursor, Copilot, Claude Code, Antigravity)
+
+`@jescrich/nestjs-workflow` is designed to be 100% AI-friendly:
+- **`llms.txt` Standard**: Refer to [`llms.txt`](llms.txt) and [`llms-full.txt`](llms-full.txt) for token-efficient, complete API context.
+- **Cursor IDE Rules**: Include [`.cursorrules`](.cursorrules) in your project to let Cursor generate perfect workflows.
+- **GitHub Copilot**: Includes [`.github/copilot-instructions.md`](.github/copilot-instructions.md).
+- **Universal Agent Instructions**: Works seamlessly with [`AGENTS.md`](AGENTS.md).
+
 ## Table of Contents
+- [Why @jescrich/nestjs-workflow vs Alternatives](#️-why-jescrichnestjs-workflow-vs-alternatives)
+- [Using with AI Coding Assistants](#-using-with-ai-coding-assistants-cursor-copilot-claude-code-antigravity)
 - [Features](#features)
 - [Stateless Architecture](#stateless-architecture)
 - [Installation](#installation)
@@ -39,7 +65,7 @@ Each example features:
   - [BullMQ Integration](#bullmq-integration)
 - [Entity Service Implementation](#entity-service-implementation)
 - [Examples & Learning Resources](#-examples--learning-resources)
-  
+
 ## Features
 - Workflow Definitions: Define workflows using a simple, declarative syntax
 - State Management: Track and persist workflow states

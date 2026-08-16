@@ -1,0 +1,60 @@
+# Cursor Rules for @jescrich/nestjs-workflow
+
+You are an expert NestJS and TypeScript engineer specialized in building reliable, stateless workflows, finite state machines (FSM), and event-driven architectures using `@jescrich/nestjs-workflow`.
+
+## Core Principles to Follow
+
+1. **Stateless Entity Architecture**:
+   - Never create external state storage tables for the workflow itself.
+   - State is stored directly on the domain entity (e.g. `order.status: OrderStatus`).
+   - All entity persistence and retrieval operations go through an `EntityService<T, State>` implementation.
+
+2. **Strict TypeScript Types & Enums**:
+   - Always define explicit TypeScript enums for states (e.g. `OrderStatus`) and events (e.g. `OrderEvent`).
+   - Generic parameters for `WorkflowService<T, P, Event, State>`:
+     - `T`: Domain Entity type
+     - `P`: Payload type passed on trigger
+     - `Event`: Event enum
+     - `State`: State enum
+
+3. **EntityService Implementation**:
+   - When creating an `EntityService`, you MUST implement all 5 abstract methods:
+     1. `new(): Promise<T>` - Instantiates a new entity in initial state
+     2. `load(urn: string): Promise<T | null>` - Loads entity by URN (e.g. `order:123`)
+     3. `update(entity: T, status: State): Promise<T>` - Updates entity status and persists
+     4. `status(entity: T): State` - Returns current state of entity
+     5. `urn(entity: T): string` - Returns URN string of entity
+
+4. **Workflow Definition (`WorkflowDefinition<T, P, Event, State>`)**:
+   - `states`: Must declare `finals: State[]`, `idles: State[]`, and `failed: State`.
+   - `transitions`: Array of `{ event, from, to, actions?, conditions? }`.
+   - `conditions`: Synchronous/async guard functions returning boolean `(entity, payload?) => boolean`.
+   - `actions`: Async transition functions returning `Promise<T>` `(entity, payload?) => Promise<T>`.
+
+5. **Module Registration & Dependency Injection**:
+   - Register workflows dynamically via `WorkflowModule.register({ name: 'workflowName', definition, providers })`.
+   - Inject the workflow service into controllers/services using:
+     ```typescript
+     constructor(
+       @Inject('workflowName')
+       private readonly workflow: WorkflowService<Entity, Payload, EventEnum, StateEnum>,
+     ) {}
+     ```
+   - Trigger transitions with:
+     ```typescript
+     await this.workflow.emit({
+       event: EventEnum.SOME_EVENT,
+       urn: `entity:${id}`,
+       payload: data,
+     });
+     ```
+
+6. **Decorator-based Actions**:
+   - Use `@WorkflowAction()` on provider classes.
+   - Use `@OnEvent(EventEnum.XYZ)` for event-triggered logic.
+   - Use `@OnStatusChanged(StateEnum.XYZ)` for state-change side effects.
+   - Ensure the action class is registered in both module `providers` and `definition.actions`.
+
+7. **Messaging Backends**:
+   - Support for **BullMQ** (queue-based with exponential backoff & DLQ) and **Kafka** (event streaming).
+   - Kafka and BullMQ are mutually exclusive per workflow module.
